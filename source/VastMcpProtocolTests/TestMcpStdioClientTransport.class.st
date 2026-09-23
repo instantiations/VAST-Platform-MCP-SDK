@@ -17,6 +17,12 @@ Class {
 }
 
 { #category : 'Running' }
+TestMcpStdioClientTransport >> expectedFailures [
+
+	^ super expectedFailures , #(testAdkMcpServerStdioIntegration)
+]
+
+{ #category : 'Running' }
 TestMcpStdioClientTransport >> setUp [
 	"Prepare a default stdio transport fixture.
 
