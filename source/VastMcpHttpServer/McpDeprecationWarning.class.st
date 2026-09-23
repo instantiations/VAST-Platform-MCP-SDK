@@ -13,9 +13,9 @@ Class {
 
 { #category : 'Reporting' }
 McpDeprecationWarning >> defaultAction [
-    "Report an unhandled configuration notice without blocking a server.
-    Answers:
-        <Object> unspecified notification result."
-    Transcript cr; show: self messageText
+	"Report an unhandled configuration notice without blocking a server.
+	Answers:
+		<Object> unspecified notification result."
+	Transcript cr; show: self messageText
 
 ]

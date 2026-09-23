@@ -302,56 +302,56 @@ TestMcpStreamableHttpAdmission >> testDeleteTerminatesKnownSession [
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testExpiryFreesCapacityForNewInitialization [
-    "Expiry returns capacity to the same admission path that enforces the cap."
-    | now request |
-    now := 1.
-    transport sessionClock: [now]; sessionIdleTimeout: 10; maxSessions: 1.
-    self readySessionId: 1.
-    now := 11.
-    request := self requestForMessage: (self initializeMessageId: 2).
-    transport handlePostRequest: request.
-    self assert: request header responseHeader status equals: '200 OK'.
-    self assert: transport sessionCount equals: 1
+	"Expiry returns capacity to the same admission path that enforces the cap."
+	| now request |
+	now := 1.
+	transport sessionClock: [now]; sessionIdleTimeout: 10; maxSessions: 1.
+	self readySessionId: 1.
+	now := 11.
+	request := self requestForMessage: (self initializeMessageId: 2).
+	transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '200 OK'.
+	self assert: transport sessionCount equals: 1
 
 ]
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testFailedOpeningDeliveryDiscardsSession [
-    "A socket-write failure after successful initialization frees the session."
-    | exchange servlet writer connection |
-    transport maxSessions: 1.
-    exchange := self performInitializationId: 1.
-    servlet := TestMcpDeliveryServlet new transport: transport; yourself.
-    writer := servlet responseEntity: (exchange at: 'body')
-        for: (exchange at: 'request').
-    connection := TestMcpDeliveryConnection new
-        writeAction: [:bytes | self error: 'Expected delivery failure'];
-            yourself.
-    self should: [writer value: connection] raise: Error.
-    self assert: transport sessionCount equals: 0.
-    self assert: (exchange at: 'session') activeRequestCount equals: 0.
-    self readySessionId: 2.
-    self assert: transport sessionCount equals: 1
+	"A socket-write failure after successful initialization frees the session."
+	| exchange servlet writer connection |
+	transport maxSessions: 1.
+	exchange := self performInitializationId: 1.
+	servlet := TestMcpDeliveryServlet new transport: transport; yourself.
+	writer := servlet responseEntity: (exchange at: 'body')
+		for: (exchange at: 'request').
+	connection := TestMcpDeliveryConnection new
+		writeAction: [:bytes | self error: 'Expected delivery failure'];
+			yourself.
+	self should: [writer value: connection] raise: Error.
+	self assert: transport sessionCount equals: 0.
+	self assert: (exchange at: 'session') activeRequestCount equals: 0.
+	self readySessionId: 2.
+	self assert: transport sessionCount equals: 1
 
 ]
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testFailedToolReleasesActiveRequestPin [
-    "A tool error cannot retain an active request count forever."
-    | now session request |
-    now := 1.
-    transport sessionClock: [now]; sessionIdleTimeout: 10.
-    session := self readySessionId: 1.
-    protocolServer toolRegistry registerTool:
-        (self toolNamed: 'fail' block: [McpToolError signal:
-            'Expected failure']).
-    request := self requestForMessage:
-        (self toolCallMessageNamed: 'fail' arguments: nil id: 2) session:
-            session.
-    transport handlePostRequest: request.
-    self assert: session activeRequestCount equals: 0.
-    now := 11.
-    self assert: transport sessionCount equals: 0
+	"A tool error cannot retain an active request count forever."
+	| now session request |
+	now := 1.
+	transport sessionClock: [now]; sessionIdleTimeout: 10.
+	session := self readySessionId: 1.
+	protocolServer toolRegistry registerTool:
+		(self toolNamed: 'fail' block: [McpToolError signal:
+			'Expected failure']).
+	request := self requestForMessage:
+		(self toolCallMessageNamed: 'fail' arguments: nil id: 2) session:
+			session.
+	transport handlePostRequest: request.
+	self assert: session activeRequestCount equals: 0.
+	now := 11.
+	self assert: transport sessionCount equals: 0
 
 ]
 
@@ -386,23 +386,23 @@ TestMcpStreamableHttpAdmission >> testGetRejectsDisallowedOriginBeforeMethodHand
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testHttpDeliveryRemainsPinnedUntilFlushed [
-    "The idle timeout excludes actual HTTP entity delivery."
-    | now exchange servlet writer connection |
-    now := 1.
-    transport sessionClock: [now]; sessionIdleTimeout: 10.
-    exchange := self performInitializationId: 1.
-    servlet := TestMcpDeliveryServlet new transport: transport; yourself.
-    writer := servlet responseEntity: (exchange at: 'body')
-        for: (exchange at: 'request').
-    connection := TestMcpDeliveryConnection new writeAction: [:bytes |
-        now := 1000.
-        self assert: transport expireIdleSessions equals: 0.
-        self assert: (exchange at: 'session') activeRequestCount equals: 1];
-        yourself.
-    writer value: connection.
-    self assert: (exchange at: 'session') activeRequestCount equals: 0.
-    now := 1010.
-    self assert: transport sessionCount equals: 0
+	"The idle timeout excludes actual HTTP entity delivery."
+	| now exchange servlet writer connection |
+	now := 1.
+	transport sessionClock: [now]; sessionIdleTimeout: 10.
+	exchange := self performInitializationId: 1.
+	servlet := TestMcpDeliveryServlet new transport: transport; yourself.
+	writer := servlet responseEntity: (exchange at: 'body')
+		for: (exchange at: 'request').
+	connection := TestMcpDeliveryConnection new writeAction: [:bytes |
+		now := 1000.
+		self assert: transport expireIdleSessions equals: 0.
+		self assert: (exchange at: 'session') activeRequestCount equals: 1];
+		yourself.
+	writer value: connection.
+	self assert: (exchange at: 'session') activeRequestCount equals: 0.
+	now := 1010.
+	self assert: transport sessionCount equals: 0
 
 ]
 
@@ -622,32 +622,32 @@ TestMcpStreamableHttpAdmission >> testHttpUnknownToolReturnsCorrelatedProtocolEr
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testIdleAndCapacityLimitsCanBeDisabled [
-    "Nil disables each limit independently."
-    | now |
-    now := 1.
-    transport sessionClock: [now]; maxSessions: nil; sessionIdleTimeout: nil.
-    self readySessionId: 1.
-    now := 1000000.
-    self readySessionId: 2.
-    self assert: transport sessionCount equals: 2
+	"Nil disables each limit independently."
+	| now |
+	now := 1.
+	transport sessionClock: [now]; maxSessions: nil; sessionIdleTimeout: nil.
+	self readySessionId: 1.
+	now := 1000000.
+	self readySessionId: 2.
+	self assert: transport sessionCount equals: 2
 
 ]
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testIdleSessionExpiresAtBoundary [
-    "An idle legacy session becomes unknown at the configured timeout."
-    | now session request |
-    now := 100.
-    transport sessionClock: [now]; sessionIdleTimeout: 10.
-    session := self readySessionId: 1.
-    now := 109.
-    self assert: transport sessionCount equals: 1.
-    now := 110.
-    request := self requestForMessage:
-        (self jsonRpcMessageMethod: 'ping' id: 2) session: session.
-    transport handlePostRequest: request.
-    self assert: request header responseHeader status equals: '404 Not Found'.
-    self assert: transport sessionCount equals: 0
+	"An idle legacy session becomes unknown at the configured timeout."
+	| now session request |
+	now := 100.
+	transport sessionClock: [now]; sessionIdleTimeout: 10.
+	session := self readySessionId: 1.
+	now := 109.
+	self assert: transport sessionCount equals: 1.
+	now := 110.
+	request := self requestForMessage:
+		(self jsonRpcMessageMethod: 'ping' id: 2) session: session.
+	transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '404 Not Found'.
+	self assert: transport sessionCount equals: 0
 
 ]
 
@@ -728,29 +728,29 @@ TestMcpStreamableHttpAdmission >> testInitializedRequestWithIdentifierIsRejected
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testInvalidOpeningDoesNotConsumeCapacity [
-    "An initialization protocol error releases its reserved slot."
-    | message request |
-    transport maxSessions: 1.
-    message := self initializeMessageId: 1.
-    (message at: 'params') removeKey: 'clientInfo'.
-    request := self requestForMessage: message.
-    transport handlePostRequest: request.
-    self assert: transport sessionCount equals: 0.
-    self readySessionId: 2.
-    self assert: transport sessionCount equals: 1
+	"An initialization protocol error releases its reserved slot."
+	| message request |
+	transport maxSessions: 1.
+	message := self initializeMessageId: 1.
+	(message at: 'params') removeKey: 'clientInfo'.
+	request := self requestForMessage: message.
+	transport handlePostRequest: request.
+	self assert: transport sessionCount equals: 0.
+	self readySessionId: 2.
+	self assert: transport sessionCount equals: 1
 
 ]
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testInvalidSessionLimitsRejected [
-    "Reject invalid limits before changing the active policy."
-    self should: [transport maxSessions: 0] raise: Error.
-    self should: [transport maxSessions: 1.5] raise: Error.
-    self should: [transport sessionIdleTimeout: 0] raise: Error.
-    self should: [transport sessionIdleTimeout: -1] raise: Error.
-    self should: [transport sessionIdleTimeout: '10'] raise: Error.
-    self assert: transport maxSessions equals: 10000.
-    self assert: transport sessionIdleTimeout equals: 1800
+	"Reject invalid limits before changing the active policy."
+	self should: [transport maxSessions: 0] raise: Error.
+	self should: [transport maxSessions: 1.5] raise: Error.
+	self should: [transport sessionIdleTimeout: 0] raise: Error.
+	self should: [transport sessionIdleTimeout: -1] raise: Error.
+	self should: [transport sessionIdleTimeout: '10'] raise: Error.
+	self assert: transport maxSessions equals: 10000.
+	self assert: transport sessionIdleTimeout equals: 1800
 
 ]
 
@@ -880,17 +880,17 @@ TestMcpStreamableHttpAdmission >> testModernPostAcceptsJsonWithoutEventStream [
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testModernRequestsIgnoreLegacyCapacity [
-    "The 2026 protocol remains sessionless when legacy capacity is exhausted."
-    | request |
-    transport maxSessions: 1.
-    self readySessionId: 1.
-    request := self requestForMessage:
-        (self jsonRpcMessageMethod: 'server/discover' id: 2).
-    request headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
-        headerAt: 'Mcp-Method' put: 'server/discover'.
-    transport handlePostRequest: request.
-    self assert: request header responseHeader status equals: '200 OK'.
-    self assert: transport sessionCount equals: 1
+	"The 2026 protocol remains sessionless when legacy capacity is exhausted."
+	| request |
+	transport maxSessions: 1.
+	self readySessionId: 1.
+	request := self requestForMessage:
+		(self jsonRpcMessageMethod: 'server/discover' id: 2).
+	request headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+		headerAt: 'Mcp-Method' put: 'server/discover'.
+	transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '200 OK'.
+	self assert: transport sessionCount equals: 1
 
 ]
 
@@ -1188,27 +1188,27 @@ TestMcpStreamableHttpAdmission >> testReadySessionDispatchesRequests [
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testRequestCompletionRestartsIdleInterval [
-    "A tool in flight survives the timeout and restarts idle time on
-        completion."
-    | now session request tool |
-    now := 100.
-    transport sessionClock: [now]; sessionIdleTimeout: 10.
-    session := self readySessionId: 1.
-    tool := self toolNamed: 'slow' block: [
-        now := 1000.
-        self assert: transport expireIdleSessions equals: 0.
-        self assert: transport sessionCount equals: 1.
-        'done'].
-    protocolServer toolRegistry registerTool: tool.
-    request := self requestForMessage:
-        (self toolCallMessageNamed: 'slow' arguments: nil id: 2) session:
-            session.
-    transport handlePostRequest: request.
-    self assert: request header responseHeader status equals: '200 OK'.
-    now := 1009.
-    self assert: transport sessionCount equals: 1.
-    now := 1010.
-    self assert: transport sessionCount equals: 0
+	"A tool in flight survives the timeout and restarts idle time on
+		completion."
+	| now session request tool |
+	now := 100.
+	transport sessionClock: [now]; sessionIdleTimeout: 10.
+	session := self readySessionId: 1.
+	tool := self toolNamed: 'slow' block: [
+		now := 1000.
+		self assert: transport expireIdleSessions equals: 0.
+		self assert: transport sessionCount equals: 1.
+		'done'].
+	protocolServer toolRegistry registerTool: tool.
+	request := self requestForMessage:
+		(self toolCallMessageNamed: 'slow' arguments: nil id: 2) session:
+			session.
+	transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '200 OK'.
+	now := 1009.
+	self assert: transport sessionCount equals: 1.
+	now := 1010.
+	self assert: transport sessionCount equals: 0
 
 ]
 
@@ -1312,21 +1312,21 @@ TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpParamHeaderMatches [
 
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testSessionCapAndDeleteRelease [
-    "A full server refuses new sessions; DELETE immediately frees capacity."
-    | session refused accepted |
-    transport maxSessions: 1.
-    session := self readySessionId: 1.
-    refused := self requestForMessage: (self initializeMessageId: 2).
-    transport handlePostRequest: refused.
-    self assert: refused header responseHeader status
-        equals: '503 Service Unavailable'.
-    self assert: transport sessionCount equals: 1.
-    transport handleDeleteRequest: (self deleteRequestForSession: session).
-    self assert: transport sessionCount equals: 0.
-    accepted := self requestForMessage: (self initializeMessageId: 3).
-    transport handlePostRequest: accepted.
-    self assert: accepted header responseHeader status equals: '200 OK'.
-    self assert: transport sessionCount equals: 1
+	"A full server refuses new sessions; DELETE immediately frees capacity."
+	| session refused accepted |
+	transport maxSessions: 1.
+	session := self readySessionId: 1.
+	refused := self requestForMessage: (self initializeMessageId: 2).
+	transport handlePostRequest: refused.
+	self assert: refused header responseHeader status
+		equals: '503 Service Unavailable'.
+	self assert: transport sessionCount equals: 1.
+	transport handleDeleteRequest: (self deleteRequestForSession: session).
+	self assert: transport sessionCount equals: 0.
+	accepted := self requestForMessage: (self initializeMessageId: 3).
+	transport handlePostRequest: accepted.
+	self assert: accepted header responseHeader status equals: '200 OK'.
+	self assert: transport sessionCount equals: 1
 
 ]
 

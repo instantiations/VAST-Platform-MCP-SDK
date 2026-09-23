@@ -386,56 +386,56 @@ TestMcpClient >> testInMemoryClientConnectAndToolExecution [
 
 { #category : 'Testing' }
 TestMcpClient >> testModernRequestStampsMetaEnvelope [
-    "Requests in 2026-07-28 stamp io.modelcontextprotocol/* metadata keys."
+	"Requests in 2026-07-28 stamp io.modelcontextprotocol/* metadata keys."
 
-    | discoverResult toolResult request params meta content |
+	| discoverResult toolResult request params meta content |
 
-    discoverResult :=
-        EsOrderedDictionary new
-            at: 'capabilities' put: (EsOrderedDictionary with: 'tools' ->
-                EsOrderedDictionary new);
-            at: 'supportedVersions' put: #('2026-07-28' '2025-11-25');
-            at: 'resultType' put: 'complete';
-            at: 'cacheScope' put: 'public';
-            at: 'ttlMs' put: 0;
-            at: '_meta'
-                put: (
-                    EsOrderedDictionary with:
-                        'io.modelcontextprotocol/serverInfo' -> (
-                            EsOrderedDictionary
-                                with: 'name' -> 'ModernServer'
-                                with: 'version' -> '2.0.0'));
-            yourself.
-    content :=
-        EsOrderedDictionary new
-            at: 'type' put: 'text';
-            at: 'text' put: 'ok';
-            yourself.
-    toolResult :=
-        EsOrderedDictionary new
-            at: 'content' put: (Array with: content);
-            at: 'resultType' put: 'complete';
-            at: 'isError' put: false;
-            yourself.
-    transport enqueueResponse: discoverResult.
-    transport enqueueResponse: toolResult.
-    transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
-    client mode: #modern.
-    client connect.
-    client callTool: 'test.tool' arguments: (EsOrderedDictionary with: 'arg' ->
-        'value').
+	discoverResult :=
+		EsOrderedDictionary new
+			at: 'capabilities' put: (EsOrderedDictionary with: 'tools' ->
+				EsOrderedDictionary new);
+			at: 'supportedVersions' put: #('2026-07-28' '2025-11-25');
+			at: 'resultType' put: 'complete';
+			at: 'cacheScope' put: 'public';
+			at: 'ttlMs' put: 0;
+			at: '_meta'
+				put: (
+					EsOrderedDictionary with:
+						'io.modelcontextprotocol/serverInfo' -> (
+							EsOrderedDictionary
+								with: 'name' -> 'ModernServer'
+								with: 'version' -> '2.0.0'));
+			yourself.
+	content :=
+		EsOrderedDictionary new
+			at: 'type' put: 'text';
+			at: 'text' put: 'ok';
+			yourself.
+	toolResult :=
+		EsOrderedDictionary new
+			at: 'content' put: (Array with: content);
+			at: 'resultType' put: 'complete';
+			at: 'isError' put: false;
+			yourself.
+	transport enqueueResponse: discoverResult.
+	transport enqueueResponse: toolResult.
+	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
+	client mode: #modern.
+	client connect.
+	client callTool: 'test.tool' arguments: (EsOrderedDictionary with: 'arg' ->
+		'value').
 
-    request := transport interactions second at: 'message'.
-    self assert: (request at: 'method') equals: 'tools/call'.
-    params := request at: 'params'.
-    self assert: (params at: 'name') equals: 'test.tool'.
-    meta := params at: '_meta'.
-    self assert: (meta at: 'io.modelcontextprotocol/protocolVersion') equals:
-        '2026-07-28'.
-    self assert: (meta includesKey:
-        'io.modelcontextprotocol/clientCapabilities').
-    self assert: ((meta at: 'io.modelcontextprotocol/clientInfo') at: 'name')
-        equals: 'VastMcpClient'
+	request := transport interactions second at: 'message'.
+	self assert: (request at: 'method') equals: 'tools/call'.
+	params := request at: 'params'.
+	self assert: (params at: 'name') equals: 'test.tool'.
+	meta := params at: '_meta'.
+	self assert: (meta at: 'io.modelcontextprotocol/protocolVersion') equals:
+		'2026-07-28'.
+	self assert: (meta includesKey:
+		'io.modelcontextprotocol/clientCapabilities').
+	self assert: ((meta at: 'io.modelcontextprotocol/clientInfo') at: 'name')
+		equals: 'VastMcpClient'
 
 ]
 

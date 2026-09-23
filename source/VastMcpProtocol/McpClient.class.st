@@ -227,115 +227,115 @@ McpClient >> callTool: toolName arguments: arguments [
 
 { #category : 'Execution' }
 McpClient >> callTool: toolName arguments: arguments headers: requestHeaders [
-    "Call a server tool and answer a validated detached result, driving any
-        InputRequiredResult rounds.
+	"Call a server tool and answer a validated detached result, driving any
+		InputRequiredResult rounds.
 
-     Arguments:
-        toolName - <String> nonempty tool name.
-        arguments - <KeyedCollection> tool arguments, or nil.
-        requestHeaders - <KeyedCollection> transport headers, or nil.
-     Answers:
-        <KeyedCollection> detached MCP CallToolResult."
+	 Arguments:
+		toolName - <String> nonempty tool name.
+		arguments - <KeyedCollection> tool arguments, or nil.
+		requestHeaders - <KeyedCollection> transport headers, or nil.
+	 Answers:
+		<KeyedCollection> detached MCP CallToolResult."
 
-    | parameters initialResult result |
+	| parameters initialResult result |
 
-    (toolName isString and: [toolName isEmpty not])
-        ifFalse: [self error: 'MCP tool name must be a nonempty string'].
-    (arguments isNil or: [arguments isKindOf: KeyedCollection])
-        ifFalse: [self error:
-            'MCP tool arguments must be a keyed collection or nil'].
-    self requireServerCapability: 'tools' forOperation: 'tools/call'.
-    parameters := EsOrderedDictionary with: 'name' -> toolName.
-    arguments ifNotNil: [parameters at: 'arguments' put: arguments].
-    initialResult :=
-        requestHeaders
-            ifNil: [self sendRequest: 'tools/call' params: parameters]
-            ifNotNil: [self sendRequest: 'tools/call' params: parameters
-                headers: requestHeaders].
-    result :=
-        self
-            driveInputRequired: initialResult
-            retryBlock: [:inputResponses :requestState | | retryParams |
-                retryParams := parameters copy.
-                inputResponses ifNotNil: [retryParams at: 'inputResponses' put:
-                inputResponses].
-                requestState ifNotNil: [retryParams at: 'requestState' put:
-                requestState].
-                requestHeaders
-                    ifNil: [self sendRequest: 'tools/call' params: retryParams]
-                    ifNotNil: [
-                        self sendRequest: 'tools/call' params: retryParams
-                headers: requestHeaders]].
-    ^self validatedToolResult: result forTool: toolName headers: requestHeaders
+	(toolName isString and: [toolName isEmpty not])
+		ifFalse: [self error: 'MCP tool name must be a nonempty string'].
+	(arguments isNil or: [arguments isKindOf: KeyedCollection])
+		ifFalse: [self error:
+			'MCP tool arguments must be a keyed collection or nil'].
+	self requireServerCapability: 'tools' forOperation: 'tools/call'.
+	parameters := EsOrderedDictionary with: 'name' -> toolName.
+	arguments ifNotNil: [parameters at: 'arguments' put: arguments].
+	initialResult :=
+		requestHeaders
+			ifNil: [self sendRequest: 'tools/call' params: parameters]
+			ifNotNil: [self sendRequest: 'tools/call' params: parameters
+				headers: requestHeaders].
+	result :=
+		self
+			driveInputRequired: initialResult
+			retryBlock: [:inputResponses :requestState | | retryParams |
+				retryParams := parameters copy.
+				inputResponses ifNotNil: [retryParams at: 'inputResponses' put:
+				inputResponses].
+				requestState ifNotNil: [retryParams at: 'requestState' put:
+				requestState].
+				requestHeaders
+					ifNil: [self sendRequest: 'tools/call' params: retryParams]
+					ifNotNil: [
+						self sendRequest: 'tools/call' params: retryParams
+				headers: requestHeaders]].
+	^self validatedToolResult: result forTool: toolName headers: requestHeaders
 
 ]
 
 { #category : 'Execution' }
 McpClient >> callTool: toolName
-    arguments: arguments
-    headers: requestHeaders
-    progressToken: aToken
-    progressCallback: aBlock [
-    "Call a server tool and answer a validated detached result with progress
-        tracking.
-     On modern connections, automatically emits Mcp-Param-* headers for
-         annotated arguments.
+	arguments: arguments
+	headers: requestHeaders
+	progressToken: aToken
+	progressCallback: aBlock [
+	"Call a server tool and answer a validated detached result with progress
+		tracking.
+	 On modern connections, automatically emits Mcp-Param-* headers for
+		 annotated arguments.
 
-     Arguments:
-        toolName - <String> nonempty tool name.
-        arguments - <KeyedCollection> tool arguments, or nil.
-        requestHeaders - <KeyedCollection> transport headers, or nil.
-        aToken - <String> or <Integer> or nil.
-        aBlock - <Block> or nil.
-     Answers:
-        <KeyedCollection> detached MCP CallToolResult."
+	 Arguments:
+		toolName - <String> nonempty tool name.
+		arguments - <KeyedCollection> tool arguments, or nil.
+		requestHeaders - <KeyedCollection> transport headers, or nil.
+		aToken - <String> or <Integer> or nil.
+		aBlock - <Block> or nil.
+	 Answers:
+		<KeyedCollection> detached MCP CallToolResult."
 
-    | parameters initialResult result effectiveHeaders paramHeaders |
+	| parameters initialResult result effectiveHeaders paramHeaders |
 
-    (toolName isString and: [toolName isEmpty not])
-        ifFalse: [self error: 'MCP tool name must be a nonempty string'].
-    (arguments isNil or: [arguments isKindOf: KeyedCollection])
-        ifFalse: [self error:
-            'MCP tool arguments must be a keyed collection or nil'].
-    self requireServerCapability: 'tools' forOperation: 'tools/call'.
-    parameters := EsOrderedDictionary with: 'name' -> toolName.
-    arguments ifNotNil: [parameters at: 'arguments' put: arguments].
+	(toolName isString and: [toolName isEmpty not])
+		ifFalse: [self error: 'MCP tool name must be a nonempty string'].
+	(arguments isNil or: [arguments isKindOf: KeyedCollection])
+		ifFalse: [self error:
+			'MCP tool arguments must be a keyed collection or nil'].
+	self requireServerCapability: 'tools' forOperation: 'tools/call'.
+	parameters := EsOrderedDictionary with: 'name' -> toolName.
+	arguments ifNotNil: [parameters at: 'arguments' put: arguments].
 
-    effectiveHeaders :=
-        requestHeaders ifNotNil: [requestHeaders copy] ifNil:
-            [EsOrderedDictionary new].
-    (McpProtocolVersion isModern: self protocolVersion)
-        ifTrue: [
-            paramHeaders := self resolveParamHeadersForTool: toolName arguments:
-                arguments.
-            paramHeaders keysAndValuesDo: [:k :v |
-                (effectiveHeaders includesKey: k) ifFalse: [effectiveHeaders at:
-                k put: v]]].
-    effectiveHeaders isEmpty ifTrue: [effectiveHeaders := nil].
+	effectiveHeaders :=
+		requestHeaders ifNotNil: [requestHeaders copy] ifNil:
+			[EsOrderedDictionary new].
+	(McpProtocolVersion isModern: self protocolVersion)
+		ifTrue: [
+			paramHeaders := self resolveParamHeadersForTool: toolName arguments:
+				arguments.
+			paramHeaders keysAndValuesDo: [:k :v |
+				(effectiveHeaders includesKey: k) ifFalse: [effectiveHeaders at:
+				k put: v]]].
+	effectiveHeaders isEmpty ifTrue: [effectiveHeaders := nil].
 
-    initialResult :=
-        self
-            sendRequest: 'tools/call'
-            params: parameters
-            headers: effectiveHeaders
-            progressToken: aToken
-            progressCallback: aBlock.
-    result :=
-        self
-            driveInputRequired: initialResult
-            retryBlock: [:inputResponses :requestState | | retryParams |
-                retryParams := parameters copy.
-                inputResponses ifNotNil: [retryParams at: 'inputResponses' put:
-                inputResponses].
-                requestState ifNotNil: [retryParams at: 'requestState' put:
-                requestState].
-                self
-                    sendRequest: 'tools/call'
-                    params: retryParams
-                    headers: effectiveHeaders
-                    progressToken: aToken
-                    progressCallback: aBlock].
-    ^self validatedToolResult: result forTool: toolName headers: requestHeaders
+	initialResult :=
+		self
+			sendRequest: 'tools/call'
+			params: parameters
+			headers: effectiveHeaders
+			progressToken: aToken
+			progressCallback: aBlock.
+	result :=
+		self
+			driveInputRequired: initialResult
+			retryBlock: [:inputResponses :requestState | | retryParams |
+				retryParams := parameters copy.
+				inputResponses ifNotNil: [retryParams at: 'inputResponses' put:
+				inputResponses].
+				requestState ifNotNil: [retryParams at: 'requestState' put:
+				requestState].
+				self
+					sendRequest: 'tools/call'
+					params: retryParams
+					headers: effectiveHeaders
+					progressToken: aToken
+					progressCallback: aBlock].
+	^self validatedToolResult: result forTool: toolName headers: requestHeaders
 
 ]
 
@@ -499,83 +499,83 @@ McpClient >> clientInfo: aDictionary [
 
 { #category : 'Execution' }
 McpClient >> close [
-    "Disconnect the client, terminate its transport, and clear negotiation.
+	"Disconnect the client, terminate its transport, and clear negotiation.
 
-     The client becomes logically disconnected before transport shutdown but
-     retains negotiated values until the transport has sent session DELETE.
-     State cleanup completes even when transport shutdown signals.
+	 The client becomes logically disconnected before transport shutdown but
+	 retains negotiated values until the transport has sent session DELETE.
+	 State cleanup completes even when transport shutdown signals.
 
-     Answers:
-        <McpClient>."
+	 Answers:
+		<McpClient>."
 
-    | transportToClose |
+	| transportToClose |
 
-    self requestMutex critical: [
-        isConnected := false.
-        transportToClose := transport].
-    [transportToClose ifNotNil: [transportToClose close]] ensure: [
-        self requestMutex critical: [
-            serverInfo := EsOrderedDictionary new.
-            serverCapabilities := EsOrderedDictionary new.
-            protocolVersion := nil.
-            knownToolOutputSchemas := nil.
-            knownToolSchemas := nil]].
-    ^self
+	self requestMutex critical: [
+		isConnected := false.
+		transportToClose := transport].
+	[transportToClose ifNotNil: [transportToClose close]] ensure: [
+		self requestMutex critical: [
+			serverInfo := EsOrderedDictionary new.
+			serverCapabilities := EsOrderedDictionary new.
+			protocolVersion := nil.
+			knownToolOutputSchemas := nil.
+			knownToolSchemas := nil]].
+	^self
 
 ]
 
 { #category : 'Execution' }
 McpClient >> collectPaginatedMethod: methodName resultKey: resultKey [
-    "Collect validated detached definitions from a paginated operation.
+	"Collect validated detached definitions from a paginated operation.
 
-     Arguments:
-        methodName - <String> JSON-RPC method name.
-        resultKey - <String> array field in each result page.
-     Answers:
-        <Array> detached protocol definitions."
+	 Arguments:
+		methodName - <String> JSON-RPC method name.
+		resultKey - <String> array field in each result page.
+	 Answers:
+		<Array> detached protocol definitions."
 
-    | items cursor seenCursors parameters result pageItems nextCursor |
+	| items cursor seenCursors parameters result pageItems nextCursor |
 
-    self checkConnected.
-    items := OrderedCollection new.
-    seenCursors := Set new.
-    cursor := nil.
-    [
-        parameters := EsOrderedDictionary new.
-        cursor ifNotNil: [parameters at: 'cursor' put: cursor].
-        result := self sendRequest: methodName params: parameters.
-        (result isKindOf: KeyedCollection)
-            ifFalse: [self error: 'Invalid ' , methodName ,
-                ' result: expected an object'].
-        pageItems := result at: resultKey ifAbsent: [nil].
-        (self isProtocolArray: pageItems)
-            ifFalse: [self error: 'Invalid ' , methodName ,
-                ' result: expected an array'].
-        pageItems do: [:item |
-            self validateListedDefinition: item forMethod: methodName.
-            (methodName = 'tools/list' and: [item isKindOf: KeyedCollection])
-                ifTrue: [
-                    (item at: 'name' ifAbsent: [nil]) ifNotNil: [:n |
-                        (item at: 'inputSchema' ifAbsent: [nil]) ifNotNil: [:s |
-                            self knownToolSchemas at: n put: (self
-                detachedProtocolValue: s)]]].
-            methodName = 'tools/list' ifTrue: [
-                self knownToolOutputSchemas at: (item at: 'name') copy
-                    put: (self detachedProtocolValue:
-                        (item at: 'outputSchema' ifAbsent: [nil]))].
-            items add: (self detachedProtocolValue: item)].
-        nextCursor := result at: 'nextCursor' ifAbsent: [nil].
-        nextCursor ifNil: [^items asArray].
-        (nextCursor isString and: [nextCursor isEmpty not])
-            ifFalse: [self error: 'Invalid ' , methodName ,
-                ' result: invalid nextCursor'].
-        (seenCursors includes: nextCursor)
-            ifTrue: [self error: 'Invalid ' , methodName ,
-                ' result: repeated nextCursor'].
-        seenCursors add: nextCursor.
-        cursor := nextCursor.
-        true]
-            whileTrue: []
+	self checkConnected.
+	items := OrderedCollection new.
+	seenCursors := Set new.
+	cursor := nil.
+	[
+		parameters := EsOrderedDictionary new.
+		cursor ifNotNil: [parameters at: 'cursor' put: cursor].
+		result := self sendRequest: methodName params: parameters.
+		(result isKindOf: KeyedCollection)
+			ifFalse: [self error: 'Invalid ' , methodName ,
+				' result: expected an object'].
+		pageItems := result at: resultKey ifAbsent: [nil].
+		(self isProtocolArray: pageItems)
+			ifFalse: [self error: 'Invalid ' , methodName ,
+				' result: expected an array'].
+		pageItems do: [:item |
+			self validateListedDefinition: item forMethod: methodName.
+			(methodName = 'tools/list' and: [item isKindOf: KeyedCollection])
+				ifTrue: [
+					(item at: 'name' ifAbsent: [nil]) ifNotNil: [:n |
+						(item at: 'inputSchema' ifAbsent: [nil]) ifNotNil: [:s |
+							self knownToolSchemas at: n put: (self
+				detachedProtocolValue: s)]]].
+			methodName = 'tools/list' ifTrue: [
+				self knownToolOutputSchemas at: (item at: 'name') copy
+					put: (self detachedProtocolValue:
+						(item at: 'outputSchema' ifAbsent: [nil]))].
+			items add: (self detachedProtocolValue: item)].
+		nextCursor := result at: 'nextCursor' ifAbsent: [nil].
+		nextCursor ifNil: [^items asArray].
+		(nextCursor isString and: [nextCursor isEmpty not])
+			ifFalse: [self error: 'Invalid ' , methodName ,
+				' result: invalid nextCursor'].
+		(seenCursors includes: nextCursor)
+			ifTrue: [self error: 'Invalid ' , methodName ,
+				' result: repeated nextCursor'].
+		seenCursors add: nextCursor.
+		cursor := nextCursor.
+		true]
+			whileTrue: []
 
 ]
 
@@ -1082,26 +1082,26 @@ McpClient >> handleIncomingMessage: aDictionary [
 { #category : 'Execution',
   #vaVisibility : 'private' }
 McpClient >> handleNotificationMethod: methodName params: parameters [
-    "Invoke the registered notification handler and evict matching cache
-        entries.
+	"Invoke the registered notification handler and evict matching cache
+		entries.
 
-     Arguments:
-        methodName - <String> MCP notification method.
-        parameters - <KeyedCollection> notification parameters.
-     Answers:
-        <McpClient> the receiver."
+	 Arguments:
+		methodName - <String> MCP notification method.
+		parameters - <KeyedCollection> notification parameters.
+	 Answers:
+		<McpClient> the receiver."
 
-    | handler |
+	| handler |
 
-    methodName = 'notifications/tools/list_changed' ifTrue: [
-        knownToolOutputSchemas := nil. knownToolSchemas := nil].
-    self responseCache evictForNotification: methodName params: parameters.
-    methodName = 'notifications/progress' ifTrue: [self
-        handleProgressNotification: parameters].
-    handler := handlerMutex critical: [notificationHandlers at: methodName
-        ifAbsent: [nil]].
-    handler ifNotNil: [handler value: parameters].
-    ^self
+	methodName = 'notifications/tools/list_changed' ifTrue: [
+		knownToolOutputSchemas := nil. knownToolSchemas := nil].
+	self responseCache evictForNotification: methodName params: parameters.
+	methodName = 'notifications/progress' ifTrue: [self
+		handleProgressNotification: parameters].
+	handler := handlerMutex critical: [notificationHandlers at: methodName
+		ifAbsent: [nil]].
+	handler ifNotNil: [handler value: parameters].
+	^self
 
 ]
 
@@ -1314,11 +1314,11 @@ McpClient >> isValidToolNameCharacter: aCharacter [
 { #category : 'Accessing',
   #vaVisibility : 'private' }
 McpClient >> knownToolOutputSchemas [
-    "Answer the private cache; nil values mean no advertised output schema.
-    Answers:
-        <Dictionary> tool names to detached schemas."
-    knownToolOutputSchemas ifNil: [knownToolOutputSchemas := Dictionary new].
-    ^knownToolOutputSchemas
+	"Answer the private cache; nil values mean no advertised output schema.
+	Answers:
+		<Dictionary> tool names to detached schemas."
+	knownToolOutputSchemas ifNil: [knownToolOutputSchemas := Dictionary new].
+	^knownToolOutputSchemas
 
 ]
 
@@ -1427,17 +1427,17 @@ McpClient >> listen: aFilterDictionary do: aBlock [
 
 { #category : 'Execution' }
 McpClient >> markDisconnected [
-    "Atomically mark the client disconnected.
+	"Atomically mark the client disconnected.
 
-     This operation intentionally retains negotiated values so transport
-     teardown can still use the active protocol and session information.
+	 This operation intentionally retains negotiated values so transport
+	 teardown can still use the active protocol and session information.
 
-     Answers:
-        <McpClient> the receiver."
+	 Answers:
+		<McpClient> the receiver."
 
-    self requestMutex critical: [isConnected := false. knownToolOutputSchemas :=
-        nil. knownToolSchemas := nil].
-    ^self
+	self requestMutex critical: [isConnected := false. knownToolOutputSchemas :=
+		nil. knownToolSchemas := nil].
+	^self
 
 ]
 
@@ -1587,42 +1587,42 @@ McpClient >> readResource: resourceUri [
 
 { #category : 'Validation' }
 McpClient >> refreshOutputSchemasWithHeaders: requestHeaders [
-    "Discover output contracts under the same credentials as the tool call.
-    Arguments:
-        requestHeaders - <KeyedCollection | nil> scoped headers.
-    Answers:
-        <Dictionary> detached output-schema snapshot."
-    | cursor seen parameters page nextCursor definitions snapshot |
-    cursor := nil.
-    seen := Set new.
-    snapshot := Dictionary new.
-    [
-        parameters := EsOrderedDictionary new.
-        cursor ifNotNil: [parameters at: 'cursor' put: cursor].
-        page := self sendRequest: 'tools/list' params: parameters
-            headers: requestHeaders.
-        (page isKindOf: KeyedCollection)
-            ifFalse: [self error: 'Invalid tools/list result: expected object'].
-        definitions := page at: 'tools' ifAbsent: [nil].
-        (self isProtocolArray: definitions)
-            ifFalse: [self error: 'Invalid tools/list result: expected array'].
-        definitions do: [:definition |
-            self validateToolDefinition: definition.
-            snapshot at: (definition at: 'name') copy put:
-                (self detachedProtocolValue:
-                    (definition at: 'outputSchema' ifAbsent: [nil]))].
-        nextCursor := page at: 'nextCursor' ifAbsent: [nil].
-        nextCursor ifNil: [(requestHeaders isNil or: [requestHeaders isEmpty])
-                ifTrue: [knownToolOutputSchemas := snapshot].
-            ^snapshot].
-        (nextCursor isString and: [nextCursor isEmpty not])
-            ifFalse: [self error: 'Invalid tools/list cursor'].
-        (seen includes: nextCursor)
-            ifTrue: [self error: 'Repeated tools/list cursor'].
-        seen add: nextCursor.
-        cursor := nextCursor.
-        true
-    ] whileTrue: []
+	"Discover output contracts under the same credentials as the tool call.
+	Arguments:
+		requestHeaders - <KeyedCollection | nil> scoped headers.
+	Answers:
+		<Dictionary> detached output-schema snapshot."
+	| cursor seen parameters page nextCursor definitions snapshot |
+	cursor := nil.
+	seen := Set new.
+	snapshot := Dictionary new.
+	[
+		parameters := EsOrderedDictionary new.
+		cursor ifNotNil: [parameters at: 'cursor' put: cursor].
+		page := self sendRequest: 'tools/list' params: parameters
+			headers: requestHeaders.
+		(page isKindOf: KeyedCollection)
+			ifFalse: [self error: 'Invalid tools/list result: expected object'].
+		definitions := page at: 'tools' ifAbsent: [nil].
+		(self isProtocolArray: definitions)
+			ifFalse: [self error: 'Invalid tools/list result: expected array'].
+		definitions do: [:definition |
+			self validateToolDefinition: definition.
+			snapshot at: (definition at: 'name') copy put:
+				(self detachedProtocolValue:
+					(definition at: 'outputSchema' ifAbsent: [nil]))].
+		nextCursor := page at: 'nextCursor' ifAbsent: [nil].
+		nextCursor ifNil: [(requestHeaders isNil or: [requestHeaders isEmpty])
+				ifTrue: [knownToolOutputSchemas := snapshot].
+			^snapshot].
+		(nextCursor isString and: [nextCursor isEmpty not])
+			ifFalse: [self error: 'Invalid tools/list cursor'].
+		(seen includes: nextCursor)
+			ifTrue: [self error: 'Repeated tools/list cursor'].
+		seen add: nextCursor.
+		cursor := nextCursor.
+		true
+	] whileTrue: []
 
 ]
 
@@ -2428,35 +2428,35 @@ McpClient >> validateResourceTemplateDefinition: definition [
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpClient >> validateToolDefinition: definition [
-    "Validate one advertised MCP tool definition.
+	"Validate one advertised MCP tool definition.
 
-     Arguments:
-        definition - <Object> tool definition candidate.
-     Answers:
-        <McpClient> the receiver."
+	 Arguments:
+		definition - <Object> tool definition candidate.
+	 Answers:
+		<McpClient> the receiver."
 
-    | name schema execution |
+	| name schema execution |
 
-    self validateNamedDefinition: definition label: 'Tool'.
-    name := definition at: 'name'.
-    name size <= 128 ifFalse: [self error:
-        'Tool name must not exceed 128 characters'].
-    (name allSatisfy: [:character | self isValidToolNameCharacter: character])
-        ifFalse: [self error: 'Tool name contains an invalid character'].
-    schema := definition at: 'inputSchema' ifAbsent: [nil].
-    self validateObjectSchema: schema label: 'Tool inputSchema'.
-    schema := definition at: 'outputSchema' ifAbsent: [nil].
-    (schema notNil and: [(schema isKindOf: KeyedCollection) not])
-        ifTrue: [self error: 'Tool outputSchema must be keyed'].
-    execution := definition at: 'execution' ifAbsent: [nil].
-    execution ifNotNil: [| taskSupport |
-        (execution isKindOf: KeyedCollection)
-            ifFalse: [self error: 'Tool execution metadata must be keyed'].
-        taskSupport := execution at: 'taskSupport' ifAbsent: [nil].
-        (taskSupport isNil or: [#('forbidden' 'optional' 'required') includes:
-            taskSupport])
-            ifFalse: [self error: 'Tool taskSupport value is invalid']].
-    ^self
+	self validateNamedDefinition: definition label: 'Tool'.
+	name := definition at: 'name'.
+	name size <= 128 ifFalse: [self error:
+		'Tool name must not exceed 128 characters'].
+	(name allSatisfy: [:character | self isValidToolNameCharacter: character])
+		ifFalse: [self error: 'Tool name contains an invalid character'].
+	schema := definition at: 'inputSchema' ifAbsent: [nil].
+	self validateObjectSchema: schema label: 'Tool inputSchema'.
+	schema := definition at: 'outputSchema' ifAbsent: [nil].
+	(schema notNil and: [(schema isKindOf: KeyedCollection) not])
+		ifTrue: [self error: 'Tool outputSchema must be keyed'].
+	execution := definition at: 'execution' ifAbsent: [nil].
+	execution ifNotNil: [| taskSupport |
+		(execution isKindOf: KeyedCollection)
+			ifFalse: [self error: 'Tool execution metadata must be keyed'].
+		taskSupport := execution at: 'taskSupport' ifAbsent: [nil].
+		(taskSupport isNil or: [#('forbidden' 'optional' 'required') includes:
+			taskSupport])
+			ifFalse: [self error: 'Tool taskSupport value is invalid']].
+	^self
 
 ]
 
@@ -2599,39 +2599,39 @@ McpClient >> validatedToolResult: result [
 
 { #category : 'Validation' }
 McpClient >> validatedToolResult: result forTool: toolName headers: requestHeaders [
-    "Validate successful structured output with no external schema access.
-    Arguments:
-        result - <Object> tool response.
-        toolName - <String> requested tool.
-        requestHeaders - <KeyedCollection | nil> discovery credentials.
-    Answers:
-        <KeyedCollection> detached result.
-    Raises:
-        <Error> missing output, invalid content, or unresolvable schema."
-    | checked schema structured schemas |
-    checked := self validatedToolResult: result.
-    (checked at: 'isError' ifAbsent: [false]) ifTrue: [^checked].
-    schemas := self knownToolOutputSchemas.
-    ((requestHeaders notNil and: [requestHeaders isEmpty not]) or: [
-        (self knownToolOutputSchemas includesKey: toolName) not]) ifTrue: [
-        schemas := self refreshOutputSchemasWithHeaders: requestHeaders].
-    schema := schemas at: toolName ifAbsent: [nil].
-    schema ifNil: [^checked].
-    structured := checked at: 'structuredContent' ifAbsent: [nil].
-    structured ifNil: [
-        self error: 'Tool ' , toolName ,
-            ' has an output schema but no structured content'].
-    [
-        [McpSchemaValidator new validate: structured against: schema]
-            on: McpJsonRpcError do: [:mismatch |
-                self error: 'Invalid structured content returned by tool ' ,
-                toolName]
-    ] on: Error do: [:failure |
-        (failure messageText beginsWithSubCollection:
-            'Invalid structured content returned by tool ') ifTrue: [failure
-                pass].
-        self error: 'Invalid schema for tool ' , toolName , ': ' , failure
-            messageText].
-    ^checked
+	"Validate successful structured output with no external schema access.
+	Arguments:
+		result - <Object> tool response.
+		toolName - <String> requested tool.
+		requestHeaders - <KeyedCollection | nil> discovery credentials.
+	Answers:
+		<KeyedCollection> detached result.
+	Raises:
+		<Error> missing output, invalid content, or unresolvable schema."
+	| checked schema structured schemas |
+	checked := self validatedToolResult: result.
+	(checked at: 'isError' ifAbsent: [false]) ifTrue: [^checked].
+	schemas := self knownToolOutputSchemas.
+	((requestHeaders notNil and: [requestHeaders isEmpty not]) or: [
+		(self knownToolOutputSchemas includesKey: toolName) not]) ifTrue: [
+		schemas := self refreshOutputSchemasWithHeaders: requestHeaders].
+	schema := schemas at: toolName ifAbsent: [nil].
+	schema ifNil: [^checked].
+	structured := checked at: 'structuredContent' ifAbsent: [nil].
+	structured ifNil: [
+		self error: 'Tool ' , toolName ,
+			' has an output schema but no structured content'].
+	[
+		[McpSchemaValidator new validate: structured against: schema]
+			on: McpJsonRpcError do: [:mismatch |
+				self error: 'Invalid structured content returned by tool ' ,
+				toolName]
+	] on: Error do: [:failure |
+		(failure messageText beginsWithSubCollection:
+			'Invalid structured content returned by tool ') ifTrue: [failure
+				pass].
+		self error: 'Invalid schema for tool ' , toolName , ': ' , failure
+			messageText].
+	^checked
 
 ]

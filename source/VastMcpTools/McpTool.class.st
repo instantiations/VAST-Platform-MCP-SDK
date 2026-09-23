@@ -342,18 +342,18 @@ McpTool >> outputSchema [
 
 { #category : 'Validation' }
 McpTool >> outputSchema: aDictionary [
-    "Validate and set the optional object-rooted result JSON Schema.
+	"Validate and set the optional object-rooted result JSON Schema.
 
-     Arguments:
-        aDictionary - <KeyedCollection> JSON Schema, or nil.
-     Answers:
-        <McpTool> the receiver."
+	 Arguments:
+		aDictionary - <KeyedCollection> JSON Schema, or nil.
+	 Answers:
+		<McpTool> the receiver."
 
-    (aDictionary notNil and: [(aDictionary isKindOf: KeyedCollection) not])
-        ifTrue: [self error: 'Tool outputSchema must be keyed'].
-    outputSchema := aDictionary ifNotNil: [self detachedProtocolValue:
-        aDictionary].
-    ^self
+	(aDictionary notNil and: [(aDictionary isKindOf: KeyedCollection) not])
+		ifTrue: [self error: 'Tool outputSchema must be keyed'].
+	outputSchema := aDictionary ifNotNil: [self detachedProtocolValue:
+		aDictionary].
+	^self
 
 ]
 

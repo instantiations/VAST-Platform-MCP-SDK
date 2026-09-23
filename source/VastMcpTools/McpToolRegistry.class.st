@@ -171,35 +171,35 @@ McpToolRegistry >> unregisterToolNamed: aString [
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpToolRegistry >> validateToolDefinition: definition [
-    "Validate an advertised definition and unsupported task claims.
+	"Validate an advertised definition and unsupported task claims.
 
-     Arguments:
-        definition - <KeyedCollection> MCP tool definition.
-     Answers:
-        <McpToolRegistry> the receiver."
+	 Arguments:
+		definition - <KeyedCollection> MCP tool definition.
+	 Answers:
+		<McpToolRegistry> the receiver."
 
-    | value execution |
+	| value execution |
 
-    #('title' 'description') do: [:field |
-        value := definition at: field ifAbsent: [nil].
-        (value isNil or: [value isString])
-            ifFalse: [self error: 'Tool ' , field , ' must be a string']].
-    value := definition at: 'inputSchema' ifAbsent: [nil].
-    ((value isKindOf: KeyedCollection) and: [(value at: 'type' ifAbsent: [nil])
-        = 'object'])
-        ifFalse: [self error: 'Tool inputSchema must declare object type'].
-    value := definition at: 'outputSchema' ifAbsent: [nil].
-    (value isNil
-        or: [value isKindOf: KeyedCollection])
-            ifFalse: [self error: 'Tool outputSchema must be keyed'].
-    execution := definition at: 'execution' ifAbsent: [nil].
-    execution ifNotNil: [| taskSupport |
-        (execution isKindOf: KeyedCollection)
-            ifFalse: [self error: 'Tool execution metadata must be keyed'].
-        taskSupport := execution at: 'taskSupport' ifAbsent: ['forbidden'].
-        taskSupport = 'forbidden'
-            ifFalse: [self error:
-                'MCP task-augmented tool execution is not implemented']].
-    ^self
+	#('title' 'description') do: [:field |
+		value := definition at: field ifAbsent: [nil].
+		(value isNil or: [value isString])
+			ifFalse: [self error: 'Tool ' , field , ' must be a string']].
+	value := definition at: 'inputSchema' ifAbsent: [nil].
+	((value isKindOf: KeyedCollection) and: [(value at: 'type' ifAbsent: [nil])
+		= 'object'])
+		ifFalse: [self error: 'Tool inputSchema must declare object type'].
+	value := definition at: 'outputSchema' ifAbsent: [nil].
+	(value isNil
+		or: [value isKindOf: KeyedCollection])
+			ifFalse: [self error: 'Tool outputSchema must be keyed'].
+	execution := definition at: 'execution' ifAbsent: [nil].
+	execution ifNotNil: [| taskSupport |
+		(execution isKindOf: KeyedCollection)
+			ifFalse: [self error: 'Tool execution metadata must be keyed'].
+		taskSupport := execution at: 'taskSupport' ifAbsent: ['forbidden'].
+		taskSupport = 'forbidden'
+			ifFalse: [self error:
+				'MCP task-augmented tool execution is not implemented']].
+	^self
 
 ]

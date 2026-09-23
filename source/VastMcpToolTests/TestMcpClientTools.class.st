@@ -73,53 +73,53 @@ TestMcpClientTools >> setUp [
 
 { #category : 'Testing' }
 TestMcpClientTools >> testCallRejectsExternalOutputReference [
-    "Reject an unresolvable advertised schema at the actual call boundary."
-    | result definition failureText |
-    self connectWithToolsCapability.
-    result := self textToolResult: 'value' isError: false.
-    result at: 'structuredContent' put: EsOrderedDictionary new.
-    definition := self toolDefinitionNamed: 'probe'.
-    definition at: 'outputSchema' put:
-        (EsOrderedDictionary with: '$ref' -> 'https://example.invalid/schema').
-    transport enqueueResponse: result.
-    transport enqueueResponse:
-        (EsOrderedDictionary with: 'tools' -> (Array with: definition)).
-    failureText := nil.
-    [client callTool: 'probe' arguments: nil]
-        on: Error
-        do: [:failure |
-            failureText := failure messageText.
-            failure return].
-    self assert: failureText notNil.
-    self assert: (failureText beginsWithSubCollection:
-        'Invalid schema for tool probe:').
-    self assert: transport requests size equals: 3
+	"Reject an unresolvable advertised schema at the actual call boundary."
+	| result definition failureText |
+	self connectWithToolsCapability.
+	result := self textToolResult: 'value' isError: false.
+	result at: 'structuredContent' put: EsOrderedDictionary new.
+	definition := self toolDefinitionNamed: 'probe'.
+	definition at: 'outputSchema' put:
+		(EsOrderedDictionary with: '$ref' -> 'https://example.invalid/schema').
+	transport enqueueResponse: result.
+	transport enqueueResponse:
+		(EsOrderedDictionary with: 'tools' -> (Array with: definition)).
+	failureText := nil.
+	[client callTool: 'probe' arguments: nil]
+		on: Error
+		do: [:failure |
+			failureText := failure messageText.
+			failure return].
+	self assert: failureText notNil.
+	self assert: (failureText beginsWithSubCollection:
+		'Invalid schema for tool probe:').
+	self assert: transport requests size equals: 3
 
 ]
 
 { #category : 'Testing' }
 TestMcpClientTools >> testCallRejectsMissingOutputReference [
-    "Reject an unresolvable advertised schema at the actual call boundary."
-    | result definition failureText |
-    self connectWithToolsCapability.
-    result := self textToolResult: 'value' isError: false.
-    result at: 'structuredContent' put: EsOrderedDictionary new.
-    definition := self toolDefinitionNamed: 'probe'.
-    definition at: 'outputSchema' put:
-        (EsOrderedDictionary with: '$ref' -> '#/$defs/missing').
-    transport enqueueResponse: result.
-    transport enqueueResponse:
-        (EsOrderedDictionary with: 'tools' -> (Array with: definition)).
-    failureText := nil.
-    [client callTool: 'probe' arguments: nil]
-        on: Error
-        do: [:failure |
-            failureText := failure messageText.
-            failure return].
-    self assert: failureText notNil.
-    self assert: (failureText beginsWithSubCollection:
-        'Invalid schema for tool probe:').
-    self assert: transport requests size equals: 3
+	"Reject an unresolvable advertised schema at the actual call boundary."
+	| result definition failureText |
+	self connectWithToolsCapability.
+	result := self textToolResult: 'value' isError: false.
+	result at: 'structuredContent' put: EsOrderedDictionary new.
+	definition := self toolDefinitionNamed: 'probe'.
+	definition at: 'outputSchema' put:
+		(EsOrderedDictionary with: '$ref' -> '#/$defs/missing').
+	transport enqueueResponse: result.
+	transport enqueueResponse:
+		(EsOrderedDictionary with: 'tools' -> (Array with: definition)).
+	failureText := nil.
+	[client callTool: 'probe' arguments: nil]
+		on: Error
+		do: [:failure |
+			failureText := failure messageText.
+			failure return].
+	self assert: failureText notNil.
+	self assert: (failureText beginsWithSubCollection:
+		'Invalid schema for tool probe:').
+	self assert: transport requests size equals: 3
 
 ]
 
@@ -142,72 +142,72 @@ TestMcpClientTools >> testCallToolAbortsWhenMaxRoundsExceeded [
 
 { #category : 'Testing' }
 TestMcpClientTools >> testCallToolDrivesInputRequiredLoop [
-    "Client automatically resolves InputRequiredResult rounds through registered
-        callbacks."
+	"Client automatically resolves InputRequiredResult rounds through registered
+		callbacks."
 
-    | inputRequired promptResult result requests |
+	| inputRequired promptResult result requests |
 
-    self connectWithToolsCapability.
-    inputRequired :=
-        EsOrderedDictionary new
-            at: 'resultType' put: 'inputRequired';
-            at: 'requestState' put: 'nonce-1';
-            at: 'inputRequests'
-                put: (
-                    EsOrderedDictionary with:
-                        'confirm' -> (
-                            EsOrderedDictionary
-                                with: 'method' -> 'elicitation/create'
-                                with: 'params' -> (EsOrderedDictionary with:
-                'message' -> 'Proceed?')));
-            yourself.
-    promptResult :=
-        EsOrderedDictionary new
-            at: 'resultType' put: 'complete';
-            at: 'content'
-                put:
-                    (Array with: (EsOrderedDictionary with: 'type' -> 'text'
-                with: 'text' -> 'done'));
-            at: 'isError' put: false;
-            yourself.
-    transport enqueueResponse: inputRequired.
-    transport enqueueResponse: promptResult.
-    client elicitationCallback: [:request :cl |
-        self assert: ((request at: 'params') at: 'message') equals: 'Proceed?'.
-        EsOrderedDictionary with: 'confirmed' -> true].
-    transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
-    result := client callTool: 'interactive.tool' arguments: EsOrderedDictionary
-        new.
-    self assert: ((result at: 'content') first at: 'text') equals: 'done'.
-    self assert: transport requests size equals: 4.
-    requests := transport requests.
-    self assert: (requests third at: 'method') equals: 'tools/call'.
-    self assert: ((requests third at: 'params') at: 'requestState') equals:
-        'nonce-1'.
-    self
-        assert: (((requests third at: 'params') at: 'inputResponses') at:
-            'confirm')
-        equals: (EsOrderedDictionary with: 'confirmed' -> true)
+	self connectWithToolsCapability.
+	inputRequired :=
+		EsOrderedDictionary new
+			at: 'resultType' put: 'inputRequired';
+			at: 'requestState' put: 'nonce-1';
+			at: 'inputRequests'
+				put: (
+					EsOrderedDictionary with:
+						'confirm' -> (
+							EsOrderedDictionary
+								with: 'method' -> 'elicitation/create'
+								with: 'params' -> (EsOrderedDictionary with:
+				'message' -> 'Proceed?')));
+			yourself.
+	promptResult :=
+		EsOrderedDictionary new
+			at: 'resultType' put: 'complete';
+			at: 'content'
+				put:
+					(Array with: (EsOrderedDictionary with: 'type' -> 'text'
+				with: 'text' -> 'done'));
+			at: 'isError' put: false;
+			yourself.
+	transport enqueueResponse: inputRequired.
+	transport enqueueResponse: promptResult.
+	client elicitationCallback: [:request :cl |
+		self assert: ((request at: 'params') at: 'message') equals: 'Proceed?'.
+		EsOrderedDictionary with: 'confirmed' -> true].
+	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
+	result := client callTool: 'interactive.tool' arguments: EsOrderedDictionary
+		new.
+	self assert: ((result at: 'content') first at: 'text') equals: 'done'.
+	self assert: transport requests size equals: 4.
+	requests := transport requests.
+	self assert: (requests third at: 'method') equals: 'tools/call'.
+	self assert: ((requests third at: 'params') at: 'requestState') equals:
+		'nonce-1'.
+	self
+		assert: (((requests third at: 'params') at: 'inputResponses') at:
+			'confirm')
+		equals: (EsOrderedDictionary with: 'confirmed' -> true)
 
 ]
 
 { #category : 'Testing' }
 TestMcpClientTools >> testCallToolOmitsNilArguments [
-    "A nil argument value omits the optional arguments member."
+	"A nil argument value omits the optional arguments member."
 
-    | response request parameters |
+	| response request parameters |
 
-    self connectWithToolsCapability.
-    response := self textToolResult: 'complete' isError: false.
-    transport enqueueResponse: response.
-    transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
-    client callTool: 'status.check' arguments: nil.
-    request := transport requests at: 2.
-    self assert: (request at: 'method') equals: 'tools/call'.
-    parameters := request at: 'params'.
-    self assert: parameters size equals: 1.
-    self assert: (parameters at: 'name') equals: 'status.check'.
-    self deny: (parameters includesKey: 'arguments')
+	self connectWithToolsCapability.
+	response := self textToolResult: 'complete' isError: false.
+	transport enqueueResponse: response.
+	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
+	client callTool: 'status.check' arguments: nil.
+	request := transport requests at: 2.
+	self assert: (request at: 'method') equals: 'tools/call'.
+	parameters := request at: 'params'.
+	self assert: parameters size equals: 1.
+	self assert: (parameters at: 'name') equals: 'status.check'.
+	self deny: (parameters includesKey: 'arguments')
 
 ]
 
@@ -252,50 +252,50 @@ TestMcpClientTools >> testCallToolRequiresToolsCapability [
 
 { #category : 'Testing' }
 TestMcpClientTools >> testCallToolSendsDetachedArgumentsAndValidatesResult [
-    "A tool call snapshots arguments and returns validated detached content."
+	"A tool call snapshots arguments and returns validated detached content."
 
-    | arguments scriptedResult result request parameters |
+	| arguments scriptedResult result request parameters |
 
-    self connectWithToolsCapability.
-    arguments := EsOrderedDictionary with: 'message' -> 'hello'.
-    scriptedResult := self textToolResult: 'hello' isError: false.
-    transport enqueueResponse: scriptedResult.
-    transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
-    result := client callTool: 'echo.message' arguments: arguments.
-    arguments at: 'message' put: 'changed'.
-    (scriptedResult at: 'content') first at: 'text' put: 'changed result'.
-    request := transport requests at: 2.
-    self assert: (request at: 'jsonrpc') equals: '2.0'.
-    self assert: (request at: 'id') equals: 2.
-    self assert: (request at: 'method') equals: 'tools/call'.
-    parameters := request at: 'params'.
-    self assert: (parameters at: 'name') equals: 'echo.message'.
-    self assert: ((parameters at: 'arguments') at: 'message') equals: 'hello'.
-    self assert: (result at: 'isError') equals: false.
-    self assert: ((result at: 'content') first at: 'text') equals: 'hello'
+	self connectWithToolsCapability.
+	arguments := EsOrderedDictionary with: 'message' -> 'hello'.
+	scriptedResult := self textToolResult: 'hello' isError: false.
+	transport enqueueResponse: scriptedResult.
+	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
+	result := client callTool: 'echo.message' arguments: arguments.
+	arguments at: 'message' put: 'changed'.
+	(scriptedResult at: 'content') first at: 'text' put: 'changed result'.
+	request := transport requests at: 2.
+	self assert: (request at: 'jsonrpc') equals: '2.0'.
+	self assert: (request at: 'id') equals: 2.
+	self assert: (request at: 'method') equals: 'tools/call'.
+	parameters := request at: 'params'.
+	self assert: (parameters at: 'name') equals: 'echo.message'.
+	self assert: ((parameters at: 'arguments') at: 'message') equals: 'hello'.
+	self assert: (result at: 'isError') equals: false.
+	self assert: ((result at: 'content') first at: 'text') equals: 'hello'
 
 ]
 
 { #category : 'Testing' }
 TestMcpClientTools >> testCallValidatesDiscoveredOutputAndReusesSchema [
-    "Discovery happens once for a known schema and validates each result."
-    | result definition schema returned |
-    self connectWithToolsCapability.
-    schema := NeoJSONReader fromString:
-        '{"type":"object","properties":{"v":{"type":"integer"}}}'.
-    definition := self toolDefinitionNamed: 'probe'.
-    definition at: 'outputSchema' put: schema.
-    result := self textToolResult: 'value' isError: false.
-    result at: 'structuredContent' put: (EsOrderedDictionary with: 'v' -> 4).
-    transport enqueueResponse: result.
-    transport enqueueResponse:
-        (EsOrderedDictionary with: 'tools' -> (Array with: definition)).
-    returned := client callTool: 'probe' arguments: nil.
-    self assert: ((returned at: 'structuredContent') at: 'v') equals: 4.
-    (result at: 'structuredContent') at: 'v' put: 'bad'.
-    transport enqueueResponse: result.
-    self should: [client callTool: 'probe' arguments: nil] raise: Error.
-    self assert: transport requests size equals: 4
+	"Discovery happens once for a known schema and validates each result."
+	| result definition schema returned |
+	self connectWithToolsCapability.
+	schema := NeoJSONReader fromString:
+		'{"type":"object","properties":{"v":{"type":"integer"}}}'.
+	definition := self toolDefinitionNamed: 'probe'.
+	definition at: 'outputSchema' put: schema.
+	result := self textToolResult: 'value' isError: false.
+	result at: 'structuredContent' put: (EsOrderedDictionary with: 'v' -> 4).
+	transport enqueueResponse: result.
+	transport enqueueResponse:
+		(EsOrderedDictionary with: 'tools' -> (Array with: definition)).
+	returned := client callTool: 'probe' arguments: nil.
+	self assert: ((returned at: 'structuredContent') at: 'v') equals: 4.
+	(result at: 'structuredContent') at: 'v' put: 'bad'.
+	transport enqueueResponse: result.
+	self should: [client callTool: 'probe' arguments: nil] raise: Error.
+	self assert: transport requests size equals: 4
 
 ]
 
@@ -415,48 +415,48 @@ TestMcpClientTools >> testMalformedToolsCapabilityIsRejected [
 
 { #category : 'Testing' }
 TestMcpClientTools >> testMissingStructuredOutputRejected [
-    "An advertised output schema requires structured output on success."
-    | definition message |
-    self connectWithToolsCapability.
-    definition := self toolDefinitionNamed: 'probe'.
-    definition at: 'outputSchema' put:
-        (EsOrderedDictionary with: 'type' -> 'object').
-    transport enqueueResponse: (self textToolResult: 'text only' isError:
-        false).
-    transport enqueueResponse:
-        (EsOrderedDictionary with: 'tools' -> (Array with: definition)).
-    message := nil.
-    [client callTool: 'probe' arguments: nil]
-        on: Error
-        do: [:failure |
-            message := failure messageText.
-            failure return].
-    self assert: message notNil.
-    self assert: (message beginsWithSubCollection:
-        'Tool probe has an output schema but no structured content')
+	"An advertised output schema requires structured output on success."
+	| definition message |
+	self connectWithToolsCapability.
+	definition := self toolDefinitionNamed: 'probe'.
+	definition at: 'outputSchema' put:
+		(EsOrderedDictionary with: 'type' -> 'object').
+	transport enqueueResponse: (self textToolResult: 'text only' isError:
+		false).
+	transport enqueueResponse:
+		(EsOrderedDictionary with: 'tools' -> (Array with: definition)).
+	message := nil.
+	[client callTool: 'probe' arguments: nil]
+		on: Error
+		do: [:failure |
+			message := failure messageText.
+			failure return].
+	self assert: message notNil.
+	self assert: (message beginsWithSubCollection:
+		'Tool probe has an output schema but no structured content')
 
 ]
 
 { #category : 'Testing' }
 TestMcpClientTools >> testToolListNotificationInvalidatesOutputSchema [
-    "A changed tools/list contract is fetched again for the next call."
-    | definition response |
-    self connectWithToolsCapability.
-    definition := self toolDefinitionNamed: 'probe'.
-    transport enqueueResponse:
-        (EsOrderedDictionary with: 'tools' -> (Array with: definition)).
-    client listTools.
-    client handleNotificationMethod: 'notifications/tools/list_changed'
-        params: EsOrderedDictionary new.
-    definition at: 'outputSchema' put:
-        (EsOrderedDictionary with: '$ref' -> '#/missing').
-    response := self textToolResult: 'value' isError: false.
-    response at: 'structuredContent' put: EsOrderedDictionary new.
-    transport enqueueResponse: response.
-    transport enqueueResponse:
-        (EsOrderedDictionary with: 'tools' -> (Array with: definition)).
-    self should: [client callTool: 'probe' arguments: nil] raise: Error.
-    self assert: (transport requests last at: 'method') equals: 'tools/list'
+	"A changed tools/list contract is fetched again for the next call."
+	| definition response |
+	self connectWithToolsCapability.
+	definition := self toolDefinitionNamed: 'probe'.
+	transport enqueueResponse:
+		(EsOrderedDictionary with: 'tools' -> (Array with: definition)).
+	client listTools.
+	client handleNotificationMethod: 'notifications/tools/list_changed'
+		params: EsOrderedDictionary new.
+	definition at: 'outputSchema' put:
+		(EsOrderedDictionary with: '$ref' -> '#/missing').
+	response := self textToolResult: 'value' isError: false.
+	response at: 'structuredContent' put: EsOrderedDictionary new.
+	transport enqueueResponse: response.
+	transport enqueueResponse:
+		(EsOrderedDictionary with: 'tools' -> (Array with: definition)).
+	self should: [client callTool: 'probe' arguments: nil] raise: Error.
+	self assert: (transport requests last at: 'method') equals: 'tools/list'
 
 ]
 

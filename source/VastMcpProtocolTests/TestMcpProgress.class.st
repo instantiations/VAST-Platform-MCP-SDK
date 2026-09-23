@@ -49,181 +49,181 @@ TestMcpProgress >> tearDown [
 
 { #category : 'Testing' }
 TestMcpProgress >> testClientAutoGeneratesProgressTokenWhenCallbackSupplied [
-    "Verify that providing a progressCallback without a token automatically
-        attaches a generated progressToken."
+	"Verify that providing a progressCallback without a token automatically
+		attaches a generated progressToken."
 
-    | response sentRequest meta token |
+	| response sentRequest meta token |
 
-    client instVarNamed: 'isConnected' put: true.
-    client instVarNamed: 'serverCapabilities' put: (Dictionary with: 'tools' ->
-        Dictionary new).
+	client instVarNamed: 'isConnected' put: true.
+	client instVarNamed: 'serverCapabilities' put: (Dictionary with: 'tools' ->
+		Dictionary new).
 
-    response :=
-        EsOrderedDictionary new
-            at: 'content'
-                put: (Array with: (EsOrderedDictionary with: 'type' -> 'text'
-                with: 'text' -> 'OK'));
-            at: 'isError' put: false;
-            yourself.
-    transport enqueueResponse: response.
-    transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
+	response :=
+		EsOrderedDictionary new
+			at: 'content'
+				put: (Array with: (EsOrderedDictionary with: 'type' -> 'text'
+				with: 'text' -> 'OK'));
+			at: 'isError' put: false;
+			yourself.
+	transport enqueueResponse: response.
+	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
 
-    client callTool: 'heavy_task' arguments: nil progressCallback: [:prog :tot
-        :msg | nil].
+	client callTool: 'heavy_task' arguments: nil progressCallback: [:prog :tot
+		:msg | nil].
 
-    sentRequest := transport requests first.
-    meta := (sentRequest at: 'params') at: '_meta'.
-    self assert: (meta includesKey: 'progressToken').
-    token := meta at: 'progressToken'.
-    self assert: ((token indexOfSubCollection: 'progress-' startingAt: 1) = 1)
+	sentRequest := transport requests first.
+	meta := (sentRequest at: 'params') at: '_meta'.
+	self assert: (meta includesKey: 'progressToken').
+	token := meta at: 'progressToken'.
+	self assert: ((token indexOfSubCollection: 'progress-' startingAt: 1) = 1)
 
 ]
 
 { #category : 'Testing' }
 TestMcpProgress >> testClientDeregistersProgressCallbackAfterCompletion [
-    "Verify that the progress callback is cleanly removed after request
-        completion."
+	"Verify that the progress callback is cleanly removed after request
+		completion."
 
-    | response callbacks |
+	| response callbacks |
 
-    client instVarNamed: 'isConnected' put: true.
-    client instVarNamed: 'serverCapabilities' put: (Dictionary with: 'tools' ->
-        Dictionary new).
+	client instVarNamed: 'isConnected' put: true.
+	client instVarNamed: 'serverCapabilities' put: (Dictionary with: 'tools' ->
+		Dictionary new).
 
-    response :=
-        EsOrderedDictionary new
-            at: 'content'
-                put: (Array with: (EsOrderedDictionary with: 'type' -> 'text'
-                with: 'text' -> 'OK'));
-            at: 'isError' put: false;
-            yourself.
-    transport enqueueResponse: response.
-    transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
+	response :=
+		EsOrderedDictionary new
+			at: 'content'
+				put: (Array with: (EsOrderedDictionary with: 'type' -> 'text'
+				with: 'text' -> 'OK'));
+			at: 'isError' put: false;
+			yourself.
+	transport enqueueResponse: response.
+	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
 
-    client
-        callTool: 'heavy_task'
-        arguments: nil
-        progressToken: 'tok-temp'
-        progressCallback: [:p | nil].
+	client
+		callTool: 'heavy_task'
+		arguments: nil
+		progressToken: 'tok-temp'
+		progressCallback: [:p | nil].
 
-    callbacks := client instVarNamed: 'progressCallbacks'.
-    self deny: (callbacks includesKey: 'tok-temp')
+	callbacks := client instVarNamed: 'progressCallbacks'.
+	self deny: (callbacks includesKey: 'tok-temp')
 
 ]
 
 { #category : 'Testing' }
 TestMcpProgress >> testClientDispatchesProgressNotificationToCallback [
-    "Verify that client dispatches notifications/progress to the matching
-        progressCallback."
+	"Verify that client dispatches notifications/progress to the matching
+		progressCallback."
 
-    | updates response progressNotification |
+	| updates response progressNotification |
 
-    updates := OrderedCollection new.
-    client instVarNamed: 'isConnected' put: true.
-    client instVarNamed: 'serverCapabilities' put: (Dictionary with: 'tools' ->
-        Dictionary new).
+	updates := OrderedCollection new.
+	client instVarNamed: 'isConnected' put: true.
+	client instVarNamed: 'serverCapabilities' put: (Dictionary with: 'tools' ->
+		Dictionary new).
 
-    response :=
-        EsOrderedDictionary new
-            at: 'content'
-                put: (Array with: (EsOrderedDictionary with: 'type' -> 'text'
-                with: 'text' -> 'OK'));
-            at: 'isError' put: false;
-            yourself.
-    transport enqueueResponse: response.
-    transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
+	response :=
+		EsOrderedDictionary new
+			at: 'content'
+				put: (Array with: (EsOrderedDictionary with: 'type' -> 'text'
+				with: 'text' -> 'OK'));
+			at: 'isError' put: false;
+			yourself.
+	transport enqueueResponse: response.
+	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
 
-    transport requestBlock: [
-        progressNotification :=
-            EsOrderedDictionary new
-                at: 'jsonrpc' put: '2.0';
-                at: 'method' put: 'notifications/progress';
-                at: 'params'
-                    put: (
-                        EsOrderedDictionary new
-                            at: 'progressToken' put: 'tok-1';
-                            at: 'progress' put: 33;
-                            at: 'total' put: 100;
-                            at: 'message' put: 'One third';
-                            yourself);
-                yourself.
-        client handleIncomingMessage: progressNotification].
+	transport requestBlock: [
+		progressNotification :=
+			EsOrderedDictionary new
+				at: 'jsonrpc' put: '2.0';
+				at: 'method' put: 'notifications/progress';
+				at: 'params'
+					put: (
+						EsOrderedDictionary new
+							at: 'progressToken' put: 'tok-1';
+							at: 'progress' put: 33;
+							at: 'total' put: 100;
+							at: 'message' put: 'One third';
+							yourself);
+				yourself.
+		client handleIncomingMessage: progressNotification].
 
-    client
-        callTool: 'heavy_task'
-        arguments: nil
-        progressToken: 'tok-1'
-        progressCallback: [:prog :tot :msg | updates add: (Array with: prog
-            with: tot with: msg)].
+	client
+		callTool: 'heavy_task'
+		arguments: nil
+		progressToken: 'tok-1'
+		progressCallback: [:prog :tot :msg | updates add: (Array with: prog
+			with: tot with: msg)].
 
-    self assert: updates size = 1.
-    self assert: updates first = #(33 100 'One third')
+	self assert: updates size = 1.
+	self assert: updates first = #(33 100 'One third')
 
 ]
 
 { #category : 'Testing' }
 TestMcpProgress >> testEndToEndToolCallWithProgress [
-    "Verify end-to-end tool execution with progress reporting."
+	"Verify end-to-end tool execution with progress reporting."
 
-    | tool clientReceivedUpdates |
+	| tool clientReceivedUpdates |
 
-    clientReceivedUpdates := OrderedCollection new.
-    tool :=
-        McpBlockTool new
-            name: 'backup_database';
-            inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
-            block: [:args :ctx |
-                ctx ifNotNil: [
-                    ctx reportProgress: 25 total: 100 message:
-                'Exporting tables'.
-                    ctx reportProgress: 75 total: 100 message:
-                'Compressing archive'.
-                    ctx reportProgress: 100 total: 100 message: 'Complete'].
-                'Backup complete'];
-            yourself.
-    server toolRegistry registerTool: tool.
+	clientReceivedUpdates := OrderedCollection new.
+	tool :=
+		McpBlockTool new
+			name: 'backup_database';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:args :ctx |
+				ctx ifNotNil: [
+					ctx reportProgress: 25 total: 100 message:
+				'Exporting tables'.
+					ctx reportProgress: 75 total: 100 message:
+				'Compressing archive'.
+					ctx reportProgress: 100 total: 100 message: 'Complete'].
+				'Backup complete'];
+			yourself.
+	server toolRegistry registerTool: tool.
 
-    client instVarNamed: 'isConnected' put: true.
-    client instVarNamed: 'serverCapabilities' put: (Dictionary with: 'tools' ->
-        Dictionary new).
+	client instVarNamed: 'isConnected' put: true.
+	client instVarNamed: 'serverCapabilities' put: (Dictionary with: 'tools' ->
+		Dictionary new).
 
-    transport requestBlock: [| lastReq reqContext |
-        lastReq := transport requests last.
-        (lastReq at: 'method') = 'tools/list' ifTrue: [
-            transport enqueueResponse: (EsOrderedDictionary with: 'tools' ->
-                #())
-        ] ifFalse: [
-        reqContext := McpServerRequestContext new.
-        reqContext progressReporter: [:progressNotificationParams |
-            client handleIncomingMessage: (
-                EsOrderedDictionary new
-                    at: 'jsonrpc' put: '2.0';
-                    at: 'method' put: 'notifications/progress';
-                    at: 'params' put: progressNotificationParams;
-                    yourself)].
-        server toolsCall: (lastReq at: 'params') context: reqContext.
-        transport enqueueResponse: (
-            EsOrderedDictionary new
-                at: 'content'
-                    put: (
-                        Array with: (
-                            EsOrderedDictionary
-                                with: 'type' -> 'text'
-                                with: 'text' -> 'Backup complete'));
-                at: 'isError' put: false;
-                yourself)]].
+	transport requestBlock: [| lastReq reqContext |
+		lastReq := transport requests last.
+		(lastReq at: 'method') = 'tools/list' ifTrue: [
+			transport enqueueResponse: (EsOrderedDictionary with: 'tools' ->
+				#())
+		] ifFalse: [
+		reqContext := McpServerRequestContext new.
+		reqContext progressReporter: [:progressNotificationParams |
+			client handleIncomingMessage: (
+				EsOrderedDictionary new
+					at: 'jsonrpc' put: '2.0';
+					at: 'method' put: 'notifications/progress';
+					at: 'params' put: progressNotificationParams;
+					yourself)].
+		server toolsCall: (lastReq at: 'params') context: reqContext.
+		transport enqueueResponse: (
+			EsOrderedDictionary new
+				at: 'content'
+					put: (
+						Array with: (
+							EsOrderedDictionary
+								with: 'type' -> 'text'
+								with: 'text' -> 'Backup complete'));
+				at: 'isError' put: false;
+				yourself)]].
 
-    client
-        callTool: 'backup_database'
-        arguments: nil
-        progressToken: 'backup-1'
-        progressCallback: [:prog :tot :msg |
-            clientReceivedUpdates add: (Array with: prog with: tot with: msg)].
+	client
+		callTool: 'backup_database'
+		arguments: nil
+		progressToken: 'backup-1'
+		progressCallback: [:prog :tot :msg |
+			clientReceivedUpdates add: (Array with: prog with: tot with: msg)].
 
-    self assert: clientReceivedUpdates size = 3.
-    self assert: clientReceivedUpdates first = #(25 100 'Exporting tables').
-    self assert: clientReceivedUpdates second = #(75 100 'Compressing archive').
-    self assert: clientReceivedUpdates third = #(100 100 'Complete')
+	self assert: clientReceivedUpdates size = 3.
+	self assert: clientReceivedUpdates first = #(25 100 'Exporting tables').
+	self assert: clientReceivedUpdates second = #(75 100 'Compressing archive').
+	self assert: clientReceivedUpdates third = #(100 100 'Complete')
 
 ]
 

@@ -62,22 +62,22 @@ McpStreamableHttpSession class >> id: sessionId
 
 { #category : 'Accessing' }
 McpStreamableHttpSession >> activeRequestCount [
-    "Answer the number of pinned requests; caller holds the session mutex.
-    Answers:
-        <Integer> nonnegative request count."
-    ^inFlight ifNil: [0]
+	"Answer the number of pinned requests; caller holds the session mutex.
+	Answers:
+		<Integer> nonnegative request count."
+	^inFlight ifNil: [0]
 
 ]
 
 { #category : 'Resource Management' }
 McpStreamableHttpSession >> beginRequestAt: seconds [
-    "Pin a request while the owning transport holds its session mutex.
-    Arguments:
-        seconds - <Number> current clock seconds.
-    Answers:
-        <McpStreamableHttpSession> the receiver."
-    inFlight := self activeRequestCount + 1.
-    idleSince := seconds
+	"Pin a request while the owning transport holds its session mutex.
+	Arguments:
+		seconds - <Number> current clock seconds.
+	Answers:
+		<McpStreamableHttpSession> the receiver."
+	inFlight := self activeRequestCount + 1.
+	idleSince := seconds
 
 ]
 
@@ -158,15 +158,15 @@ McpStreamableHttpSession >> detachedJsonValue: anObject visited: visitedObjects 
 
 { #category : 'Resource Management' }
 McpStreamableHttpSession >> endRequestAt: seconds [
-    "Release one active request; the last release starts the idle interval.
-    Arguments:
-        seconds - <Number> current clock seconds.
-    Answers:
-        <McpStreamableHttpSession> the receiver."
-    self activeRequestCount > 0
-        ifFalse: [self error: 'MCP session request count underflow'].
-    inFlight := inFlight - 1.
-    inFlight = 0 ifTrue: [idleSince := seconds]
+	"Release one active request; the last release starts the idle interval.
+	Arguments:
+		seconds - <Number> current clock seconds.
+	Answers:
+		<McpStreamableHttpSession> the receiver."
+	self activeRequestCount > 0
+		ifFalse: [self error: 'MCP session request count underflow'].
+	inFlight := inFlight - 1.
+	inFlight = 0 ifTrue: [idleSince := seconds]
 
 ]
 
@@ -214,16 +214,16 @@ McpStreamableHttpSession >> initializeId: sessionId
 
 { #category : 'Resource Management' }
 McpStreamableHttpSession >> isIdleAt: seconds timeout: timeoutSeconds [
-    "Test idle expiry, resetting the interval if the clock moves backward.
-    Arguments:
-        seconds - <Number> current clock seconds.
-        timeoutSeconds - <Number | nil> positive idle timeout, nil disables.
-    Answers:
-        <Boolean>. Caller holds the owning transport's session mutex."
-    self activeRequestCount > 0 ifTrue: [^false].
-    (idleSince isNil or: [seconds < idleSince]) ifTrue: [idleSince := seconds].
-    timeoutSeconds ifNil: [^false].
-    ^seconds - idleSince >= timeoutSeconds
+	"Test idle expiry, resetting the interval if the clock moves backward.
+	Arguments:
+		seconds - <Number> current clock seconds.
+		timeoutSeconds - <Number | nil> positive idle timeout, nil disables.
+	Answers:
+		<Boolean>. Caller holds the owning transport's session mutex."
+	self activeRequestCount > 0 ifTrue: [^false].
+	(idleSince isNil or: [seconds < idleSince]) ifTrue: [idleSince := seconds].
+	timeoutSeconds ifNil: [^false].
+	^seconds - idleSince >= timeoutSeconds
 
 ]
 

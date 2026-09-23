@@ -82,10 +82,10 @@ McpHttpClientTestResponseHeader >> initialize [
 
 { #category : 'Fixtures' }
 McpHttpClientTestResponseHeader >> location [
-    "Answer the scripted Location header or nil.
-    Answers:
-        <String | nil> redirect URI reference."
-    ^self at: 'Location' ifAbsent: [nil]
+	"Answer the scripted Location header or nil.
+	Answers:
+		<String | nil> redirect URI reference."
+	^self at: 'Location' ifAbsent: [nil]
 
 ]
 

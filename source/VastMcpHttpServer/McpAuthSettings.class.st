@@ -219,72 +219,72 @@ McpAuthSettings >> tokenValidator: aBlock [
 
 { #category : 'Validation' }
 McpAuthSettings >> validateConfiguration [
-    "Validate the completed configuration when attached or used.
-    Answers:
-        <McpAuthSettings> the receiver.
-    Raises:
-        <Error> resource validation enabled without a valid resource URL.
-        <McpDeprecationWarning> unspecified 2.x resource policy, once."
-    validateTokenResource == true ifTrue: [
-        (McpHttpUrlPolicy resourceKey: resourceServerUrl) ifNil: [
-            self error:
-                'validateTokenResource requires a valid resourceServerUrl']].
-    (validateTokenResource isNil and: [resourceServerUrl notNil and: [
-        resourceWarningIssued ~= true]]) ifTrue: [
-            resourceWarningIssued := true.
-            McpDeprecationWarning signal:
-                'Set validateTokenResource; the 3.0 default will be true']
+	"Validate the completed configuration when attached or used.
+	Answers:
+		<McpAuthSettings> the receiver.
+	Raises:
+		<Error> resource validation enabled without a valid resource URL.
+		<McpDeprecationWarning> unspecified 2.x resource policy, once."
+	validateTokenResource == true ifTrue: [
+		(McpHttpUrlPolicy resourceKey: resourceServerUrl) ifNil: [
+			self error:
+				'validateTokenResource requires a valid resourceServerUrl']].
+	(validateTokenResource isNil and: [resourceServerUrl notNil and: [
+		resourceWarningIssued ~= true]]) ifTrue: [
+			resourceWarningIssued := true.
+			McpDeprecationWarning signal:
+				'Set validateTokenResource; the 3.0 default will be true']
 
 ]
 
 { #category : 'Validation' }
 McpAuthSettings >> validateToken: aTokenString [
-    "Validate the token, then optionally enforce its verified resource.
-    The validator must supply a keyed principal with a textual 'resource'.
-    This method never decodes an unverified token to infer its audience.
-    Arguments:
-        aTokenString - <String> bearer token.
-    Answers:
-        <Object | nil> verified principal, or nil when rejected."
-    | principal expected actual |
-    self validateConfiguration.
-    principal := self tokenValidator
-        ifNotNil: [:validator |
-            [validator cull: aTokenString] on: Error do: [:failure | nil]]
-        ifNil: [
-            (aTokenString isString and: [aTokenString isEmpty not])
-                ifTrue: [aTokenString] ifFalse: [nil]].
-    principal ifNil: [^nil].
-    validateTokenResource == true ifFalse: [^principal].
-    (principal isKindOf: KeyedCollection) ifFalse: [^nil].
-    expected := McpHttpUrlPolicy resourceKey: resourceServerUrl.
-    actual := McpHttpUrlPolicy resourceKey:
-        (principal at: 'resource' ifAbsent: [nil]).
-    (actual notNil and: [actual = expected]) ifTrue: [^principal].
-    ^nil
+	"Validate the token, then optionally enforce its verified resource.
+	The validator must supply a keyed principal with a textual 'resource'.
+	This method never decodes an unverified token to infer its audience.
+	Arguments:
+		aTokenString - <String> bearer token.
+	Answers:
+		<Object | nil> verified principal, or nil when rejected."
+	| principal expected actual |
+	self validateConfiguration.
+	principal := self tokenValidator
+		ifNotNil: [:validator |
+			[validator cull: aTokenString] on: Error do: [:failure | nil]]
+		ifNil: [
+			(aTokenString isString and: [aTokenString isEmpty not])
+				ifTrue: [aTokenString] ifFalse: [nil]].
+	principal ifNil: [^nil].
+	validateTokenResource == true ifFalse: [^principal].
+	(principal isKindOf: KeyedCollection) ifFalse: [^nil].
+	expected := McpHttpUrlPolicy resourceKey: resourceServerUrl.
+	actual := McpHttpUrlPolicy resourceKey:
+		(principal at: 'resource' ifAbsent: [nil]).
+	(actual notNil and: [actual = expected]) ifTrue: [^principal].
+	^nil
 
 ]
 
 { #category : 'Accessing' }
 McpAuthSettings >> validateTokenResource [
-    "Answer nil when unspecified, false when delegated, or true to enforce.
-    Answers:
-        <Boolean | nil> resource-validation setting."
-    ^validateTokenResource
+	"Answer nil when unspecified, false when delegated, or true to enforce.
+	Answers:
+		<Boolean | nil> resource-validation setting."
+	^validateTokenResource
 
 ]
 
 { #category : 'Accessing' }
 McpAuthSettings >> validateTokenResource: aBoolean [
-    "Choose whether to require the verifier's resource to match this server.
-    Arguments:
-        aBoolean - <Boolean | nil>; nil keeps the 2.x default disabled.
-    Answers:
-        <McpAuthSettings> the receiver."
-    (aBoolean isNil or: [aBoolean isBoolean])
-        ifFalse: [self error:
-            'Token resource validation must be boolean or nil'].
-    validateTokenResource := aBoolean.
-    resourceWarningIssued := false
+	"Choose whether to require the verifier's resource to match this server.
+	Arguments:
+		aBoolean - <Boolean | nil>; nil keeps the 2.x default disabled.
+	Answers:
+		<McpAuthSettings> the receiver."
+	(aBoolean isNil or: [aBoolean isBoolean])
+		ifFalse: [self error:
+			'Token resource validation must be boolean or nil'].
+	validateTokenResource := aBoolean.
+	resourceWarningIssued := false
 
 ]

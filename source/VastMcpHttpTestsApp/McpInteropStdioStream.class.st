@@ -20,17 +20,17 @@ Class {
 
 { #category : 'Instance Creation' }
 McpInteropStdioStream class >> new [
-    "Answer a fresh blocking stream fixture."
+	"Answer a fresh blocking stream fixture."
 
-    ^super new initialize
+	^super new initialize
 ]
 
 { #category : 'Reading' }
 McpInteropStdioStream >> atEnd [
-    "Block until data or close; answer true after all lines are consumed."
+	"Block until data or close; answer true after all lines are consumed."
 
-    self awaitReadable.
-    ^mutex critical: [closed and: [lines isEmpty]]
+	self awaitReadable.
+	^mutex critical: [closed and: [lines isEmpty]]
 ]
 
 { #category : 'Synchronization',
@@ -82,15 +82,15 @@ McpInteropStdioStream >> flush [
 { #category : 'Initialization',
   #vaVisibility : 'private' }
 McpInteropStdioStream >> initialize [
-    "Initialize synchronization and test-owned byte buffers."
+	"Initialize synchronization and test-owned byte buffers."
 
-    super initialize.
-    mutex := Semaphore forMutualExclusion.
-    available := Semaphore new.
-    pending := OrderedCollection new.
-    lines := OrderedCollection new.
-    history := OrderedCollection new.
-    closed := false
+	super initialize.
+	mutex := Semaphore forMutualExclusion.
+	available := Semaphore new.
+	pending := OrderedCollection new.
+	lines := OrderedCollection new.
+	history := OrderedCollection new.
+	closed := false
 ]
 
 { #category : 'Reading' }
@@ -103,31 +103,31 @@ McpInteropStdioStream >> nextLine [
 
 { #category : 'Writing' }
 McpInteropStdioStream >> nextPutAll: aCollection [
-    "Buffer bytes, encoding String writes as UTF-8 at this text adapter.
-    This fixture does not model OsWritePipeStream encoding behavior."
+	"Buffer bytes, encoding String writes as UTF-8 at this text adapter.
+	This fixture does not model OsWritePipeStream encoding behavior."
 
-    | bytes |
+	| bytes |
 
-    bytes := aCollection isString
-        ifTrue: [aCollection asUtf8Bytes]
-        ifFalse: [aCollection asByteArray].
-    mutex critical: [
-        closed ifTrue: [self error: 'Interop stdio stream is closed'].
-        pending addAll: bytes]
+	bytes := aCollection isString
+		ifTrue: [aCollection asUtf8Bytes]
+		ifFalse: [aCollection asByteArray].
+	mutex critical: [
+		closed ifTrue: [self error: 'Interop stdio stream is closed'].
+		pending addAll: bytes]
 ]
 
 { #category : 'Reading' }
 McpInteropStdioStream >> upTo: aDelimiter [
-    "Read one physical LF-delimited line, or nil at drained EOF."
+	"Read one physical LF-delimited line, or nil at drained EOF."
 
-    (aDelimiter = Character lf or: [aDelimiter = Character lf value])
-        ifFalse: [self error: 'Interop stdio stream requires LF'].
-    ^self nextLine
+	(aDelimiter = Character lf or: [aDelimiter = Character lf value])
+		ifFalse: [self error: 'Interop stdio stream requires LF'].
+	^self nextLine
 ]
 
 { #category : 'Accessing' }
 McpInteropStdioStream >> writtenLines [
-    "Answer detached complete lines for framing and ordering assertions."
+	"Answer detached complete lines for framing and ordering assertions."
 
-    ^mutex critical: [history collect: [:line | line copy]]
+	^mutex critical: [history collect: [:line | line copy]]
 ]

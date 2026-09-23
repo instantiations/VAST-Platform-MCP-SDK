@@ -15,20 +15,20 @@ Class {
 
 { #category : 'Fixtures' }
 TestMcpDeliveryServlet >> transport [
-    "Answer the fixture transport.
-    Answers:
-        <McpStreamableHttpTransport>."
-    ^configuredTransport
+	"Answer the fixture transport.
+	Answers:
+		<McpStreamableHttpTransport>."
+	^configuredTransport
 
 ]
 
 { #category : 'Fixtures' }
 TestMcpDeliveryServlet >> transport: aTransport [
-    "Set the fixture transport.
-    Arguments:
-        aTransport - <McpStreamableHttpTransport> test transport.
-    Answers:
-        <TestMcpDeliveryServlet> the receiver."
-    configuredTransport := aTransport
+	"Set the fixture transport.
+	Arguments:
+		aTransport - <McpStreamableHttpTransport> test transport.
+	Answers:
+		<TestMcpDeliveryServlet> the receiver."
+	configuredTransport := aTransport
 
 ]

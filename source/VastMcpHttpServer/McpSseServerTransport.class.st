@@ -111,16 +111,16 @@ McpSseServerTransport >> authSettings [
 
 { #category : 'Configuration' }
 McpSseServerTransport >> authSettings: anAuthSettings [
-    "Set the OAuth authentication settings.
+	"Set the OAuth authentication settings.
 
-     Arguments:
-        anAuthSettings - <McpAuthSettings> or nil.
-     Answers:
-        <McpSseServerTransport> the receiver."
+	 Arguments:
+		anAuthSettings - <McpAuthSettings> or nil.
+	 Answers:
+		<McpSseServerTransport> the receiver."
 
-    anAuthSettings ifNotNil: [anAuthSettings validateConfiguration].
-    authSettings := anAuthSettings.
-    ^self
+	anAuthSettings ifNotNil: [anAuthSettings validateConfiguration].
+	authSettings := anAuthSettings.
+	^self
 
 ]
 

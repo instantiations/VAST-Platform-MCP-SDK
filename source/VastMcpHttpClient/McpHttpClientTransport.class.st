@@ -230,119 +230,119 @@ McpHttpClientTransport >> close [
 { #category : 'Instance Creation',
   #vaVisibility : 'private' }
 McpHttpClientTransport >> configuredHttpClientFor: endpointUrl [
-    "Answer an SST client with private MCP timeout configuration.
+	"Answer an SST client with private MCP timeout configuration.
 
-     Arguments:
-        endpointUrl - <SstHttpUrl> validated MCP endpoint.
-     Answers:
-        <SstHttpClient>."
+	 Arguments:
+		endpointUrl - <SstHttpUrl> validated MCP endpoint.
+	 Answers:
+		<SstHttpClient>."
 
-    | transportIdentifier anHttpClient configuration |
+	| transportIdentifier anHttpClient configuration |
 
-    transportIdentifier := endpointUrl localEndpointUrl transport.
-    anHttpClient := McpOriginHttpClient forTransportScheme: transportIdentifier.
-    anHttpClient isSstError ifTrue: [anHttpClient raise].
-    configuration := anHttpClient configuration.
-    configuration notNil ifTrue: [configuration negotiationTimeout: self
-        requestTimeout].
-    ^anHttpClient
+	transportIdentifier := endpointUrl localEndpointUrl transport.
+	anHttpClient := McpOriginHttpClient forTransportScheme: transportIdentifier.
+	anHttpClient isSstError ifTrue: [anHttpClient raise].
+	configuration := anHttpClient configuration.
+	configuration notNil ifTrue: [configuration negotiationTimeout: self
+		requestTimeout].
+	^anHttpClient
 
 ]
 
 { #category : 'Execution',
   #vaVisibility : 'private' }
 McpHttpClientTransport >> doSendListenRequest: requestDictionary id: requestId headers: requestHeaders [
-    "Send a modern subscriptions/listen POST request with SSE streaming and
-        process change events.
+	"Send a modern subscriptions/listen POST request with SSE streaming and
+		process change events.
 
-     Arguments:
-        requestDictionary - <KeyedCollection> JSON-RPC request.
-        requestId - <String> or <Number> request identifier.
-        requestHeaders - <KeyedCollection> validated headers, or nil.
-     Answers:
-        <Object> validated JSON-RPC subscription acknowledgment result."
+	 Arguments:
+		requestDictionary - <KeyedCollection> JSON-RPC request.
+		requestId - <String> or <Number> request identifier.
+		requestHeaders - <KeyedCollection> validated headers, or nil.
+	 Answers:
+		<Object> validated JSON-RPC subscription acknowledgment result."
 
-    | jsonString headers exchangeClient response stream ackSemaphore ackResult
-      receiveBuffer parser isDone |
+	| jsonString headers exchangeClient response stream ackSemaphore ackResult
+	  receiveBuffer parser isDone |
 
-    jsonString := String streamContents: [:s | (NeoJSONWriter on: s) nextPut:
-        requestDictionary].
-    headers := self headersIncluding: requestHeaders.
-    (self client notNil and: [McpProtocolVersion isModern: self client
-        protocolVersion])
-        ifTrue: [self putHeaderName: 'Mcp-Method' value: 'subscriptions/listen'
-            into: headers].
-    self putHeaderName: 'Accept' value: 'text/event-stream' into: headers.
+	jsonString := String streamContents: [:s | (NeoJSONWriter on: s) nextPut:
+		requestDictionary].
+	headers := self headersIncluding: requestHeaders.
+	(self client notNil and: [McpProtocolVersion isModern: self client
+		protocolVersion])
+		ifTrue: [self putHeaderName: 'Mcp-Method' value: 'subscriptions/listen'
+			into: headers].
+	self putHeaderName: 'Accept' value: 'text/event-stream' into: headers.
 
-    exchangeClient := self configuredHttpClientFor: self url.
-    [response :=
-        exchangeClient
-            createAndSendRequestFor: self url
-            typed: 'application/json'
-            using: nil
-            withHeaders: headers
-            templateMessage: exchangeClient templateHttpPOSTMessage copy
-            data: jsonString asUtf8Bytes
-            assemblerPolicy: (exchangeClient newAssemblerPolicy streamContents:
-                true)]
-        on: Error do: [:failure | exchangeClient shutDown. failure pass].
+	exchangeClient := self configuredHttpClientFor: self url.
+	[response :=
+		exchangeClient
+			createAndSendRequestFor: self url
+			typed: 'application/json'
+			using: nil
+			withHeaders: headers
+			templateMessage: exchangeClient templateHttpPOSTMessage copy
+			data: jsonString asUtf8Bytes
+			assemblerPolicy: (exchangeClient newAssemblerPolicy streamContents:
+				true)]
+		on: Error do: [:failure | exchangeClient shutDown. failure pass].
 
-    (response isSstError
-        or: [(response respondsTo: #header) and: [response header statusCode >=
-            300]])
-            ifTrue: [
-                exchangeClient shutDown.
-                self error: 'HTTP Error on subscriptions/listen: ' , response
-                printString].
+	(response isSstError
+		or: [(response respondsTo: #header) and: [response header statusCode >=
+			300]])
+			ifTrue: [
+				exchangeClient shutDown.
+				self error: 'HTTP Error on subscriptions/listen: ' , response
+				printString].
 
-    stream := response inputStream.
-    stream ifNil: [
-        exchangeClient shutDown.
-        self error: 'No input stream on subscriptions/listen response'].
+	stream := response inputStream.
+	stream ifNil: [
+		exchangeClient shutDown.
+		self error: 'No input stream on subscriptions/listen response'].
 
-    subscriptionClient := exchangeClient.
-    ackSemaphore := Semaphore new.
-    ackResult := nil.
-    receiveBuffer := #[].
-    parser := McpSseParser new.
-    isDone := false.
+	subscriptionClient := exchangeClient.
+	ackSemaphore := Semaphore new.
+	ackResult := nil.
+	receiveBuffer := #[].
+	parser := McpSseParser new.
+	isDone := false.
 
-    subscriptionStream :=
-        stream
-            listen: [:chunk |
-                receiveBuffer := parser
-                    parseAvailableBytes: (receiveBuffer , chunk asByteArray)
-                    do: [:event |
-                        event data isEmpty ifFalse: [| parsed |
-                            parsed := [NeoJSONReader fromString: event data]
-                                on: Error do: [:e | nil].
-                            parsed ifNotNil: [
-                                ((parsed at: 'id' ifAbsent: [nil]) = requestId
-                                    and: [ackResult isNil])
-                                        ifTrue: [
-                                            ackResult := self
-                validatedResultFrom: parsed
-                                                id: requestId.
-                                            ackSemaphore signal]
-                                        ifFalse: [self client ifNotNil: [:c |
-                                            c handleIncomingMessage:
-                parsed]]]]]]
-            onError: [:err |
-                isDone
-                    ifFalse: [
-                        isDone := true.
-                        ackSemaphore signal]]
-            onDone: [
-                isDone
-                    ifFalse: [
-                        isDone := true.
-                        ackSemaphore signal]]
-            cancelOnError: false.
+	subscriptionStream :=
+		stream
+			listen: [:chunk |
+				receiveBuffer := parser
+					parseAvailableBytes: (receiveBuffer , chunk asByteArray)
+					do: [:event |
+						event data isEmpty ifFalse: [| parsed |
+							parsed := [NeoJSONReader fromString: event data]
+								on: Error do: [:e | nil].
+							parsed ifNotNil: [
+								((parsed at: 'id' ifAbsent: [nil]) = requestId
+									and: [ackResult isNil])
+										ifTrue: [
+											ackResult := self
+				validatedResultFrom: parsed
+												id: requestId.
+											ackSemaphore signal]
+										ifFalse: [self client ifNotNil: [:c |
+											c handleIncomingMessage:
+				parsed]]]]]]
+			onError: [:err |
+				isDone
+					ifFalse: [
+						isDone := true.
+						ackSemaphore signal]]
+			onDone: [
+				isDone
+					ifFalse: [
+						isDone := true.
+						ackSemaphore signal]]
+			cancelOnError: false.
 
-    ackSemaphore wait.
-    ackResult ifNil: [self error:
-        'Failed to receive subscription acknowledgment'].
-    ^ackResult
+	ackSemaphore wait.
+	ackResult ifNil: [self error:
+		'Failed to receive subscription acknowledgment'].
+	^ackResult
 
 ]
 
@@ -363,117 +363,117 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId [
 { #category : 'Execution',
   #vaVisibility : 'private' }
 McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers: requestHeaders [
-    "Send a request using a fresh SST exchange and recover stale sessions once.
+	"Send a request using a fresh SST exchange and recover stale sessions once.
 
-     An initialization request with a stale local session retries directly
-     after clearing that session, avoiding recursive connection locking.
+	 An initialization request with a stale local session retries directly
+	 after clearing that session, avoiding recursive connection locking.
 
-     Arguments:
-        requestDictionary - <KeyedCollection> JSON-RPC request.
-        requestId - <String> or <Number> request identifier.
-        requestHeaders - <KeyedCollection> validated headers, or nil.
-     Answers:
-        <Object> validated JSON-RPC result."
+	 Arguments:
+		requestDictionary - <KeyedCollection> JSON-RPC request.
+		requestId - <String> or <Number> request identifier.
+		requestHeaders - <KeyedCollection> validated headers, or nil.
+	 Answers:
+		<Object> validated JSON-RPC result."
 
-    | jsonString responseOrError response resultDictionary result contentType
-        allowRetry done headers
-      isInitialize mediaType isJson |
+	| jsonString responseOrError response resultDictionary result contentType
+		allowRetry done headers
+	  isInitialize mediaType isJson |
 
-    (requestDictionary isKindOf: KeyedCollection)
-        ifFalse: [self error: 'MCP request must be a keyed collection'].
-    (requestId isString or: [requestId isNumber])
-        ifFalse: [self error: 'MCP request identifier is invalid'].
-    url ifNil: [self error: 'MCP HTTP endpoint is not configured'].
+	(requestDictionary isKindOf: KeyedCollection)
+		ifFalse: [self error: 'MCP request must be a keyed collection'].
+	(requestId isString or: [requestId isNumber])
+		ifFalse: [self error: 'MCP request identifier is invalid'].
+	url ifNil: [self error: 'MCP HTTP endpoint is not configured'].
 
-    ((requestDictionary at: 'method' ifAbsent: [nil]) = 'subscriptions/listen')
-        ifTrue: [^self doSendListenRequest: requestDictionary id: requestId
-            headers: requestHeaders].
+	((requestDictionary at: 'method' ifAbsent: [nil]) = 'subscriptions/listen')
+		ifTrue: [^self doSendListenRequest: requestDictionary id: requestId
+			headers: requestHeaders].
 
-    isInitialize := (requestDictionary at: 'method' ifAbsent: [nil]) =
-        'initialize'.
-    jsonString :=
-        String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut:
-            requestDictionary].
-    allowRetry := true.
-    done := false.
-    [done] whileFalse: [
-        headers := self headersIncluding: requestHeaders.
-        (self client notNil and: [McpProtocolVersion isModern: self client
-            protocolVersion])
-            ifTrue: [| method params |
-                method := requestDictionary at: 'method' ifAbsent: [nil].
-                method ifNotNil: [
-                    self putHeaderName: 'Mcp-Method' value: method into:
-                headers.
-                    params := requestDictionary at: 'params' ifAbsent: [nil].
-                    (params isKindOf: KeyedCollection)
-                        ifTrue: [
-                            (#('tools/call' 'prompts/get') includes: method)
-                                ifTrue: [
-                                    (params at: 'name' ifAbsent: [nil])
-                ifNotNil: [:n |
-                                        self
-                                            putHeaderName: 'Mcp-Name'
-                                            value: (self encodeHeaderValue: n)
-                                            into: headers]].
-                            method = 'resources/read'
-                                ifTrue: [
-                                    (params at: 'uri' ifAbsent: [nil]) ifNotNil:
-                [:u |
-                                        self
-                                            putHeaderName: 'Mcp-Name'
-                                            value: (self encodeHeaderValue: u)
-                                            into: headers]]]]].
-        responseOrError :=
-            self withHttpClientDo: [:exchangeClient |
-                exchangeClient
-                    post: jsonString asUtf8Bytes
-                    typed: 'application/json'
-                    at: self url
-                    using: nil
-                    withHeaders: headers].
-        response := self responseMessageFrom: responseOrError.
-        (response header statusCode between: 300 and: 399)
-            ifTrue: [self error: 'MCP HTTP redirect was not followed'].
-        contentType := response header contentType.
-        mediaType := contentType ifNotNil: [self baseMediaTypeFrom:
-            contentType].
-        isJson := mediaType notNil and: [mediaType sameAs: 'application/json'].
-        response header statusCode >= 400
-            ifTrue: [
-                (response header statusCode = 404 and: [sessionID notNil and:
-                [allowRetry]])
-                    ifTrue: [
-                        sessionID := nil.
-                        allowRetry := false.
-                        isInitialize
-                            ifFalse: [
-                                self client ifNil: [self error:
-                'MCP transport has no owning client'].
-                                self client markDisconnected.
-                                self client connectWithHeaders: requestHeaders]]
-                    ifFalse: [
-                        isJson
-                            ifTrue: [
-                                resultDictionary :=
-                                    [
-                                        self
-                                            parseResponse: response contents
-                                            contentType: contentType
-                                            id: requestId]
-                                                on: Error
-                                                do: [:parseErr | nil].
-                                resultDictionary ifNotNil: [
-                                    ^self validatedResultFrom: resultDictionary
-                id: requestId]].
-                        self error: 'HTTP Error: ' , response header status]]
-            ifFalse: [done := true]].
-    contentType ifNil: [self error: 'Missing Content-Type'].
-    resultDictionary := self parseResponse: response contents contentType:
-        contentType id: requestId.
-    result := self validatedResultFrom: resultDictionary id: requestId.
-    isInitialize ifTrue: [self captureSessionFrom: response].
-    ^result
+	isInitialize := (requestDictionary at: 'method' ifAbsent: [nil]) =
+		'initialize'.
+	jsonString :=
+		String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut:
+			requestDictionary].
+	allowRetry := true.
+	done := false.
+	[done] whileFalse: [
+		headers := self headersIncluding: requestHeaders.
+		(self client notNil and: [McpProtocolVersion isModern: self client
+			protocolVersion])
+			ifTrue: [| method params |
+				method := requestDictionary at: 'method' ifAbsent: [nil].
+				method ifNotNil: [
+					self putHeaderName: 'Mcp-Method' value: method into:
+				headers.
+					params := requestDictionary at: 'params' ifAbsent: [nil].
+					(params isKindOf: KeyedCollection)
+						ifTrue: [
+							(#('tools/call' 'prompts/get') includes: method)
+								ifTrue: [
+									(params at: 'name' ifAbsent: [nil])
+				ifNotNil: [:n |
+										self
+											putHeaderName: 'Mcp-Name'
+											value: (self encodeHeaderValue: n)
+											into: headers]].
+							method = 'resources/read'
+								ifTrue: [
+									(params at: 'uri' ifAbsent: [nil]) ifNotNil:
+				[:u |
+										self
+											putHeaderName: 'Mcp-Name'
+											value: (self encodeHeaderValue: u)
+											into: headers]]]]].
+		responseOrError :=
+			self withHttpClientDo: [:exchangeClient |
+				exchangeClient
+					post: jsonString asUtf8Bytes
+					typed: 'application/json'
+					at: self url
+					using: nil
+					withHeaders: headers].
+		response := self responseMessageFrom: responseOrError.
+		(response header statusCode between: 300 and: 399)
+			ifTrue: [self error: 'MCP HTTP redirect was not followed'].
+		contentType := response header contentType.
+		mediaType := contentType ifNotNil: [self baseMediaTypeFrom:
+			contentType].
+		isJson := mediaType notNil and: [mediaType sameAs: 'application/json'].
+		response header statusCode >= 400
+			ifTrue: [
+				(response header statusCode = 404 and: [sessionID notNil and:
+				[allowRetry]])
+					ifTrue: [
+						sessionID := nil.
+						allowRetry := false.
+						isInitialize
+							ifFalse: [
+								self client ifNil: [self error:
+				'MCP transport has no owning client'].
+								self client markDisconnected.
+								self client connectWithHeaders: requestHeaders]]
+					ifFalse: [
+						isJson
+							ifTrue: [
+								resultDictionary :=
+									[
+										self
+											parseResponse: response contents
+											contentType: contentType
+											id: requestId]
+												on: Error
+												do: [:parseErr | nil].
+								resultDictionary ifNotNil: [
+									^self validatedResultFrom: resultDictionary
+				id: requestId]].
+						self error: 'HTTP Error: ' , response header status]]
+			ifFalse: [done := true]].
+	contentType ifNil: [self error: 'Missing Content-Type'].
+	resultDictionary := self parseResponse: response contents contentType:
+		contentType id: requestId.
+	result := self validatedResultFrom: resultDictionary id: requestId.
+	isInitialize ifTrue: [self captureSessionFrom: response].
+	^result
 
 ]
 
@@ -805,25 +805,25 @@ McpHttpClientTransport >> supportsRequestHeaders [
 { #category : 'Execution',
   #vaVisibility : 'private' }
 McpHttpClientTransport >> terminateSession [
-    "Terminate the logical MCP session in one isolated SST exchange.
+	"Terminate the logical MCP session in one isolated SST exchange.
 
-     Answers:
-        <McpHttpClientTransport> the receiver."
+	 Answers:
+		<McpHttpClientTransport> the receiver."
 
-    | responseOrError response statusCode |
+	| responseOrError response statusCode |
 
-    (sessionID isNil or: [url isNil]) ifTrue: [^self].
-    responseOrError :=
-        self withHttpClientDo: [:exchangeClient |
-            exchangeClient delete: self url typed: nil using: nil withHeaders:
-                self buildHeaders].
-    response := self responseMessageFrom: responseOrError.
-    statusCode := response header statusCode.
-    (statusCode >= 300 and: [statusCode ~= 404 and: [statusCode ~= 405]])
-        ifTrue: [self error: 'MCP session termination failed: ' , response
-            header status].
-    sessionID := nil.
-    ^self
+	(sessionID isNil or: [url isNil]) ifTrue: [^self].
+	responseOrError :=
+		self withHttpClientDo: [:exchangeClient |
+			exchangeClient delete: self url typed: nil using: nil withHeaders:
+				self buildHeaders].
+	response := self responseMessageFrom: responseOrError.
+	statusCode := response header statusCode.
+	(statusCode >= 300 and: [statusCode ~= 404 and: [statusCode ~= 405]])
+		ifTrue: [self error: 'MCP session termination failed: ' , response
+			header status].
+	sessionID := nil.
+	^self
 
 ]
 

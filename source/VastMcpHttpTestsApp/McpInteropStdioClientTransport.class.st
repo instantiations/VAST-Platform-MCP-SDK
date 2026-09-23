@@ -41,21 +41,21 @@ McpInteropStdioClientTransport >> attachToServer: aStdioServer [
 
 { #category : 'Lifecycle' }
 McpInteropStdioClientTransport >> close [
-    "Release fixture streams and workers, including on assertion failure."
+	"Release fixture streams and workers, including on assertion failure."
 
-    isClosing := true.
-    [
-        inputChannel ifNotNil: [inputChannel close].
-        outputChannel ifNotNil: [outputChannel close].
-        stdioServer ifNotNil: [stdioServer stop]]
-            ensure: [super close]
+	isClosing := true.
+	[
+		inputChannel ifNotNil: [inputChannel close].
+		outputChannel ifNotNil: [outputChannel close].
+		stdioServer ifNotNil: [stdioServer stop]]
+			ensure: [super close]
 ]
 
 { #category : 'Lifecycle' }
 McpInteropStdioClientTransport >> ensureConnected [
-    "Require the fixture connection; never launch an external process."
+	"Require the fixture connection; never launch an external process."
 
-    self isRunning ifFalse: [self error: 'Interop stdio server is stopped']
+	self isRunning ifFalse: [self error: 'Interop stdio server is stopped']
 ]
 
 { #category : 'Testing' }
@@ -67,16 +67,16 @@ McpInteropStdioClientTransport >> isRunning [
 
 { #category : 'Accessing' }
 McpInteropStdioClientTransport >> requestLines [
-    "Answer recorded input lines for this test."
+	"Answer recorded input lines for this test."
 
-    ^inputChannel writtenLines
+	^inputChannel writtenLines
 ]
 
 { #category : 'Accessing' }
 McpInteropStdioClientTransport >> responseLines [
-    "Answer recorded output lines for this test."
+	"Answer recorded output lines for this test."
 
-    ^outputChannel writtenLines
+	^outputChannel writtenLines
 ]
 
 { #category : 'Writing' }

@@ -14,27 +14,27 @@ Class {
 
 { #category : 'Testing' }
 TestMcpBearerAuth >> setUp [
-    "Prepare server, transport, and configured auth settings."
+	"Prepare server, transport, and configured auth settings."
 
-    super setUp.
-    server := McpServer new.
-    transport :=
-        McpStreamableHttpTransport new
-            dispatcher: (
-                McpJsonRpcDispatcher new
-                    server: server;
-                    yourself);
-            yourself.
-    authSettings :=
-        McpAuthSettings new
-            issuerUrl: 'https://auth.example.com';
-            validateTokenResource: false;
-            resourceServerUrl: 'http://127.0.0.1:8080/mcp';
-            requiredScopes: #('tools:call');
-            tokenValidator: [:tok | tok = 'valid-secret-token' ifTrue:
-                ['user-123'] ifFalse: [nil]];
-            yourself.
-    transport authSettings: authSettings
+	super setUp.
+	server := McpServer new.
+	transport :=
+		McpStreamableHttpTransport new
+			dispatcher: (
+				McpJsonRpcDispatcher new
+					server: server;
+					yourself);
+			yourself.
+	authSettings :=
+		McpAuthSettings new
+			issuerUrl: 'https://auth.example.com';
+			validateTokenResource: false;
+			resourceServerUrl: 'http://127.0.0.1:8080/mcp';
+			requiredScopes: #('tools:call');
+			tokenValidator: [:tok | tok = 'valid-secret-token' ifTrue:
+				['user-123'] ifFalse: [nil]];
+			yourself.
+	transport authSettings: authSettings
 
 ]
 
@@ -92,14 +92,14 @@ TestMcpBearerAuth >> testClientTransportInjectsBearerToken [
 
 { #category : 'Testing' }
 TestMcpBearerAuth >> testDeleteRequiresValidResourceWhenEnabled [
-    "Session deletion uses the same resource-aware authentication boundary."
-    | request |
-    authSettings validateTokenResource: true;
-        tokenValidator: [:token | Dictionary new].
-    request := McpHttpServerTestRequest new
-        headerAt: 'Authorization' put: 'Bearer valid-secret-token'; yourself.
-    transport handleDeleteRequest: request.
-    self assert: request header responseHeader status equals: '401 Unauthorized'
+	"Session deletion uses the same resource-aware authentication boundary."
+	| request |
+	authSettings validateTokenResource: true;
+		tokenValidator: [:token | Dictionary new].
+	request := McpHttpServerTestRequest new
+		headerAt: 'Authorization' put: 'Bearer valid-secret-token'; yourself.
+	transport handleDeleteRequest: request.
+	self assert: request header responseHeader status equals: '401 Unauthorized'
 
 ]
 
@@ -199,18 +199,18 @@ TestMcpBearerAuth >> testValidTokenProceeds [
 
 { #category : 'Testing' }
 TestMcpBearerAuth >> testWrongResourceIsRejectedAtHttpBoundary [
-    "The HTTP POST endpoint returns 401 for another resource's verified token."
-    | request |
-    authSettings validateTokenResource: true;
-        tokenValidator: [:token |
-            Dictionary with: 'resource' -> 'https://other.example/mcp'].
-    request := McpHttpServerTestRequest new
-        headerAt: 'Authorization' put: 'Bearer valid-secret-token';
-        headerAt: 'Accept' put: 'application/json, text/event-stream';
-        contentType: 'application/json';
-        contents: '{"jsonrpc":"2.0","id":1,"method":"ping"}' asUtf8Bytes;
-        yourself.
-    transport handlePostRequest: request.
-    self assert: request header responseHeader status equals: '401 Unauthorized'
+	"The HTTP POST endpoint returns 401 for another resource's verified token."
+	| request |
+	authSettings validateTokenResource: true;
+		tokenValidator: [:token |
+			Dictionary with: 'resource' -> 'https://other.example/mcp'].
+	request := McpHttpServerTestRequest new
+		headerAt: 'Authorization' put: 'Bearer valid-secret-token';
+		headerAt: 'Accept' put: 'application/json, text/event-stream';
+		contentType: 'application/json';
+		contents: '{"jsonrpc":"2.0","id":1,"method":"ping"}' asUtf8Bytes;
+		yourself.
+	transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '401 Unauthorized'
 
 ]

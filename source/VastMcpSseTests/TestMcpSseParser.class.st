@@ -76,17 +76,17 @@ TestMcpSseParser >> testByteOrderMarkIsIgnored [
 
 { #category : 'Testing' }
 TestMcpSseParser >> testCombiningMarksAfterFieldDelimiterRemainInData [
-    "A leading combining acute accent may cluster with the colon or space.
-    SSE strips the optional ASCII space, never the following accent."
+	"A leading combining acute accent may cluster with the colon or space.
+	SSE strips the optional ASCII space, never the following accent."
 
-    | payload input events |
+	| payload input events |
 
-    payload := #[204 129 120].
-    #('data:' 'data: ') do: [:prefix |
-        input := UnicodeString utf8: (prefix asUtf8Bytes , payload , #[10 10]).
-        events := McpSseParser new parse: input.
-        self assert: events size equals: 1.
-        self assert: events first data asUtf8Bytes equals: payload]
+	payload := #[204 129 120].
+	#('data:' 'data: ') do: [:prefix |
+		input := UnicodeString utf8: (prefix asUtf8Bytes , payload , #[10 10]).
+		events := McpSseParser new parse: input.
+		self assert: events size equals: 1.
+		self assert: events first data asUtf8Bytes equals: payload]
 ]
 
 { #category : 'Parsing' }
@@ -245,38 +245,38 @@ TestMcpSseParser >> testRetryAndIdentifierPersistAcrossBlocksWithoutData [
 
 { #category : 'Testing' }
 TestMcpSseParser >> testUnicodeLineEndingsPreserveFieldsAndDispatch [
-    "Exercise decoded UnicodeString input with each legal SSE line ending.
-    Check both the first character after a delimiter and the final blank line."
+	"Exercise decoded UnicodeString input with each legal SSE line ending.
+	Check both the first character after a delimiter and the final blank line."
 
-    | payload bytes input events event |
+	| payload bytes input events event |
 
-    payload := #[240 159 152 128].
-    (Array with: #[10] with: #[13 10] with: #[13]) do: [:ending |
-        bytes := 'event: update' asUtf8Bytes , ending ,
-            'id: 7' asUtf8Bytes , ending ,
-            'retry: 2500' asUtf8Bytes , ending ,
-            'data: ' asUtf8Bytes , payload , ending ,
-            'data: second' asUtf8Bytes , ending , ending.
-        input := UnicodeString utf8: bytes.
-        events := McpSseParser new parse: input.
-        self assert: events size equals: 1.
-        event := events first.
-        self assert: event type equals: 'update'.
-        self assert: event id equals: '7'.
-        self assert: event retry equals: 2500.
-        self assert: event data asUtf8Bytes
-            equals: payload , #[10] , 'second' asUtf8Bytes]
+	payload := #[240 159 152 128].
+	(Array with: #[10] with: #[13 10] with: #[13]) do: [:ending |
+		bytes := 'event: update' asUtf8Bytes , ending ,
+			'id: 7' asUtf8Bytes , ending ,
+			'retry: 2500' asUtf8Bytes , ending ,
+			'data: ' asUtf8Bytes , payload , ending ,
+			'data: second' asUtf8Bytes , ending , ending.
+		input := UnicodeString utf8: bytes.
+		events := McpSseParser new parse: input.
+		self assert: events size equals: 1.
+		event := events first.
+		self assert: event type equals: 'update'.
+		self assert: event id equals: '7'.
+		self assert: event retry equals: 2500.
+		self assert: event data asUtf8Bytes
+			equals: payload , #[10] , 'second' asUtf8Bytes]
 ]
 
 { #category : 'Testing' }
 TestMcpSseParser >> testUnicodeSeparatorsRemainInData [
-    "VT, FF, NEL, LS and PS must not split an SSE data line."
+	"VT, FF, NEL, LS and PS must not split an SSE data line."
 
-    | payload input events |
+	| payload input events |
 
-    payload := #[65 11 66 12 67 194 133 68 226 128 168 69 226 128 169 70].
-    input := UnicodeString utf8: ('data: ' asUtf8Bytes , payload , #[10 10]).
-    events := McpSseParser new parse: input.
-    self assert: events size equals: 1.
-    self assert: events first data asUtf8Bytes equals: payload
+	payload := #[65 11 66 12 67 194 133 68 226 128 168 69 226 128 169 70].
+	input := UnicodeString utf8: ('data: ' asUtf8Bytes , payload , #[10 10]).
+	events := McpSseParser new parse: input.
+	self assert: events size equals: 1.
+	self assert: events first data asUtf8Bytes equals: payload
 ]

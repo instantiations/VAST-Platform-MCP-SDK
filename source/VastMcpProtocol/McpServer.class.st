@@ -1716,13 +1716,13 @@ McpServer >> toolsList: parameters context: requestContext [
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpServer >> validateArguments: value againstSchema: schema [
-    "Validate arguments with the native document-local schema validator.
-    Arguments:
-        value - <Object> JSON value.
-        schema - <KeyedCollection | nil> schema document.
-    Answers:
-        <McpServer> the receiver."
-    McpSchemaValidator new validate: value against: schema
+	"Validate arguments with the native document-local schema validator.
+	Arguments:
+		value - <Object> JSON value.
+		schema - <KeyedCollection | nil> schema document.
+	Answers:
+		<McpServer> the receiver."
+	McpSchemaValidator new validate: value against: schema
 
 ]
 

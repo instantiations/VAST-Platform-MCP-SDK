@@ -140,129 +140,129 @@ McpLegacySseClientTransport >> close [
 { #category : 'Instance Creation',
   #vaVisibility : 'private' }
 McpLegacySseClientTransport >> configuredHttpClientFor: endpointUrl [
-    "Answer an SST client with private MCP timeout configuration.
+	"Answer an SST client with private MCP timeout configuration.
 
-     Arguments:
-        endpointUrl - <SstHttpUrl> validated MCP endpoint.
-     Answers:
-        <SstHttpClient>."
+	 Arguments:
+		endpointUrl - <SstHttpUrl> validated MCP endpoint.
+	 Answers:
+		<SstHttpClient>."
 
-    | transportIdentifier anHttpClient configuration |
+	| transportIdentifier anHttpClient configuration |
 
-    transportIdentifier := endpointUrl localEndpointUrl transport.
-    anHttpClient := McpOriginHttpClient forTransportScheme: transportIdentifier.
-    anHttpClient isSstError ifTrue: [anHttpClient raise].
-    configuration := anHttpClient configuration.
-    configuration notNil ifTrue: [configuration negotiationTimeout: self
-        requestTimeout * 1000].
-    ^anHttpClient
+	transportIdentifier := endpointUrl localEndpointUrl transport.
+	anHttpClient := McpOriginHttpClient forTransportScheme: transportIdentifier.
+	anHttpClient isSstError ifTrue: [anHttpClient raise].
+	configuration := anHttpClient configuration.
+	configuration notNil ifTrue: [configuration negotiationTimeout: self
+		requestTimeout * 1000].
+	^anHttpClient
 
 ]
 
 { #category : 'Execution',
   #vaVisibility : 'private' }
 McpLegacySseClientTransport >> doPostMessage: jsonString headers: requestHeaders [
-    "Post one JSON-RPC string to the discovered SSE POST endpoint.
-     If the POST response returns a direct JSON-RPC result (200 OK), dispatches
-         it immediately."
+	"Post one JSON-RPC string to the discovered SSE POST endpoint.
+	 If the POST response returns a direct JSON-RPC result (200 OK), dispatches
+		 it immediately."
 
-    | targetUrl headers exchangeClient responseOrError response parsedResp |
+	| targetUrl headers exchangeClient responseOrError response parsedResp |
 
-    targetUrl := self postUrl.
-    targetUrl ifNil: [self error: 'No SSE endpoint URL available for POST'].
-    headers := self headersIncluding: requestHeaders.
-    exchangeClient := self configuredHttpClientFor: targetUrl.
-    [
-        responseOrError :=
-            exchangeClient
-                post: jsonString asUtf8Bytes
-                typed: 'application/json'
-                at: targetUrl
-                using: nil
-                withHeaders: headers.
-        (responseOrError respondsTo: #header)
-            ifFalse: [self error: 'POST failed: ' , responseOrError
-                printString].
-        response := responseOrError.
-        response header statusCode >= 300
-            ifTrue: [
-                self error:
-                    'HTTP Error ' , response header status ,
-                ' posting message to SSE endpoint'].
-        (response header statusCode = 200 and: [response contents notEmpty])
-            ifTrue: [
-                parsedResp :=
-                    [NeoJSONReader fromString:
-                        (UnicodeString utf8: response contents asByteArray)]
-                        on: Exception
-                        do: [:e | e exitWith: nil].
-                parsedResp ifNotNil: [self handleIncomingJson: parsedResp]]]
-                    ensure: [exchangeClient shutDown].
-    ^self
+	targetUrl := self postUrl.
+	targetUrl ifNil: [self error: 'No SSE endpoint URL available for POST'].
+	headers := self headersIncluding: requestHeaders.
+	exchangeClient := self configuredHttpClientFor: targetUrl.
+	[
+		responseOrError :=
+			exchangeClient
+				post: jsonString asUtf8Bytes
+				typed: 'application/json'
+				at: targetUrl
+				using: nil
+				withHeaders: headers.
+		(responseOrError respondsTo: #header)
+			ifFalse: [self error: 'POST failed: ' , responseOrError
+				printString].
+		response := responseOrError.
+		response header statusCode >= 300
+			ifTrue: [
+				self error:
+					'HTTP Error ' , response header status ,
+				' posting message to SSE endpoint'].
+		(response header statusCode = 200 and: [response contents notEmpty])
+			ifTrue: [
+				parsedResp :=
+					[NeoJSONReader fromString:
+						(UnicodeString utf8: response contents asByteArray)]
+						on: Exception
+						do: [:e | e exitWith: nil].
+				parsedResp ifNotNil: [self handleIncomingJson: parsedResp]]]
+					ensure: [exchangeClient shutDown].
+	^self
 
 ]
 
 { #category : 'Execution' }
 McpLegacySseClientTransport >> ensureConnected [
-    "Establish the SSE stream if not already running, and await the endpoint
-        event.
+	"Establish the SSE stream if not already running, and await the endpoint
+		event.
 
-     Answers:
-        <McpLegacySseClientTransport> the receiver."
+	 Answers:
+		<McpLegacySseClientTransport> the receiver."
 
-    | streamResponse stream timerProcess timedOut |
+	| streamResponse stream timerProcess timedOut |
 
-    self isRunning ifTrue: [^self].
-    isClosing := false.
-    httpClient := self configuredHttpClientFor: self url.
-    [
-        streamResponse := httpClient get: self url typed: nil using: nil
-            withHeaders: self buildHeaders streaming: true.
-        streamResponse isSstError ifTrue: [streamResponse raise].
-        streamResponse header statusCode >= 300
-            ifTrue: [self error: 'MCP SSE opening request failed']
-    ] on: Error do: [:failure |
-        httpClient shutDown.
-        httpClient := nil.
-        failure pass].
-    (streamResponse respondsTo: #header)
-        ifTrue: [
-            streamResponse header statusCode >= 400
-                ifTrue: [
-                    self error:
-                        'HTTP Error ' , streamResponse header status ,
-                ' establishing SSE connection']].
-    (streamResponse respondsTo: #isStreamed)
-        ifTrue: [
-            streamResponse isStreamed
-                ifTrue: [
-                    stream := streamResponse inputStream.
-                    streamSubscription :=
-                        stream
-                            listen: [:chunk | self handleStreamChunk: chunk]
-                            onError: [:err | self handleStreamError: err]
-                            onDone: [self handleStreamDone]
-                            cancelOnError: false]
-                ifFalse: [streamResponse contents ifNotNil: [:body | self
-                handleStreamChunk: body]]]
-        ifFalse: [
-            (streamResponse respondsTo: #contents)
-                ifTrue: [streamResponse contents ifNotNil: [:body | self
-                handleStreamChunk: body]]].
-    timedOut := false.
-    timerProcess :=
-        [
-            (Delay forSeconds: self requestTimeout) wait.
-            timedOut := true.
-            endpointReceivedSemaphore signal]
-                forkAt: Processor userBackgroundPriority.
-    endpointReceivedSemaphore wait.
-    timerProcess terminate.
-    (timedOut and: [self postUrl isNil])
-        ifTrue: [
-            self close.
-            self error: 'Timed out waiting for SSE endpoint event'].
-    ^self
+	self isRunning ifTrue: [^self].
+	isClosing := false.
+	httpClient := self configuredHttpClientFor: self url.
+	[
+		streamResponse := httpClient get: self url typed: nil using: nil
+			withHeaders: self buildHeaders streaming: true.
+		streamResponse isSstError ifTrue: [streamResponse raise].
+		streamResponse header statusCode >= 300
+			ifTrue: [self error: 'MCP SSE opening request failed']
+	] on: Error do: [:failure |
+		httpClient shutDown.
+		httpClient := nil.
+		failure pass].
+	(streamResponse respondsTo: #header)
+		ifTrue: [
+			streamResponse header statusCode >= 400
+				ifTrue: [
+					self error:
+						'HTTP Error ' , streamResponse header status ,
+				' establishing SSE connection']].
+	(streamResponse respondsTo: #isStreamed)
+		ifTrue: [
+			streamResponse isStreamed
+				ifTrue: [
+					stream := streamResponse inputStream.
+					streamSubscription :=
+						stream
+							listen: [:chunk | self handleStreamChunk: chunk]
+							onError: [:err | self handleStreamError: err]
+							onDone: [self handleStreamDone]
+							cancelOnError: false]
+				ifFalse: [streamResponse contents ifNotNil: [:body | self
+				handleStreamChunk: body]]]
+		ifFalse: [
+			(streamResponse respondsTo: #contents)
+				ifTrue: [streamResponse contents ifNotNil: [:body | self
+				handleStreamChunk: body]]].
+	timedOut := false.
+	timerProcess :=
+		[
+			(Delay forSeconds: self requestTimeout) wait.
+			timedOut := true.
+			endpointReceivedSemaphore signal]
+				forkAt: Processor userBackgroundPriority.
+	endpointReceivedSemaphore wait.
+	timerProcess terminate.
+	(timedOut and: [self postUrl isNil])
+		ifTrue: [
+			self close.
+			self error: 'Timed out waiting for SSE endpoint event'].
+	^self
 
 ]
 

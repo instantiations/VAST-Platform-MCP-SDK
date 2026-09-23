@@ -134,18 +134,18 @@ McpHttpServer >> authSettings [
 
 { #category : 'Configuration' }
 McpHttpServer >> authSettings: anAuthSettings [
-    "Set the OAuth authentication settings.
+	"Set the OAuth authentication settings.
 
-     Arguments:
-        anAuthSettings - <McpAuthSettings> or nil.
-     Answers:
-        <McpHttpServer> the receiver."
+	 Arguments:
+		anAuthSettings - <McpAuthSettings> or nil.
+	 Answers:
+		<McpHttpServer> the receiver."
 
-    anAuthSettings ifNotNil: [anAuthSettings validateConfiguration].
-    authSettings := anAuthSettings.
-    activeTransport ifNotNil: [:t | t authSettings: anAuthSettings].
-    sseTransport ifNotNil: [:st | st authSettings: anAuthSettings].
-    ^self
+	anAuthSettings ifNotNil: [anAuthSettings validateConfiguration].
+	authSettings := anAuthSettings.
+	activeTransport ifNotNil: [:t | t authSettings: anAuthSettings].
+	sseTransport ifNotNil: [:st | st authSettings: anAuthSettings].
+	^self
 
 ]
 
@@ -237,23 +237,23 @@ McpHttpServer >> host: aString [
 { #category : 'Initialization',
   #vaVisibility : 'private' }
 McpHttpServer >> initialize [
-    "Initialize secure listener and request-context defaults.
+	"Initialize secure listener and request-context defaults.
 
-     Answers:
-        <McpHttpServer> the receiver."
+	 Answers:
+		<McpHttpServer> the receiver."
 
-    super initialize.
-    host := '127.0.0.1'.
-    port := 8080.
-    endpointPath := '/mcp'.
-    allowedOrigins := Set new.
-    allowedHosts := Set new.
-    maximumRequestSize := 10 * 1024 * 1024.
-    requestContextFactory := nil.
-    activeTransport := nil.
-    sessionIdleTimeout := 1800.
-    maxSessions := 10000.
-    ^self
+	super initialize.
+	host := '127.0.0.1'.
+	port := 8080.
+	endpointPath := '/mcp'.
+	allowedOrigins := Set new.
+	allowedHosts := Set new.
+	maximumRequestSize := 10 * 1024 * 1024.
+	requestContextFactory := nil.
+	activeTransport := nil.
+	sessionIdleTimeout := 1800.
+	maxSessions := 10000.
+	^self
 
 ]
 
@@ -269,24 +269,24 @@ McpHttpServer >> isRunning [
 
 { #category : 'Accessing' }
 McpHttpServer >> maxSessions [
-    "Answer the maximum retained legacy sessions; nil disables the limit.
-    Answers:
-        <Number | nil> configured limit."
-    ^maxSessions
+	"Answer the maximum retained legacy sessions; nil disables the limit.
+	Answers:
+		<Number | nil> configured limit."
+	^maxSessions
 
 ]
 
 { #category : 'Configuration' }
 McpHttpServer >> maxSessions: limit [
-    "Set the maximum retained legacy sessions; nil disables it.
-    Arguments:
-        limit - <Number | nil> positive finite limit.
-    Answers:
-        <McpHttpServer> the receiver."
-    (limit isNil or: [(limit isInteger and: [limit > 0])])
-        ifFalse: [self error: 'Invalid maxSessions'].
-    maxSessions := limit.
-    activeTransport ifNotNil: [:current | current maxSessions: limit]
+	"Set the maximum retained legacy sessions; nil disables it.
+	Arguments:
+		limit - <Number | nil> positive finite limit.
+	Answers:
+		<McpHttpServer> the receiver."
+	(limit isNil or: [(limit isInteger and: [limit > 0])])
+		ifFalse: [self error: 'Invalid maxSessions'].
+	maxSessions := limit.
+	activeTransport ifNotNil: [:current | current maxSessions: limit]
 
 ]
 
@@ -396,46 +396,46 @@ McpHttpServer >> requestContextFactory: aBlock [
 
 { #category : 'Accessing' }
 McpHttpServer >> sessionIdleTimeout [
-    "Answer the idle timeout in seconds; nil disables the limit.
-    Answers:
-        <Number | nil> configured limit."
-    ^sessionIdleTimeout
+	"Answer the idle timeout in seconds; nil disables the limit.
+	Answers:
+		<Number | nil> configured limit."
+	^sessionIdleTimeout
 
 ]
 
 { #category : 'Configuration' }
 McpHttpServer >> sessionIdleTimeout: limit [
-    "Set the idle timeout in seconds; nil disables it.
-    Arguments:
-        limit - <Number | nil> positive finite limit.
-    Answers:
-        <McpHttpServer> the receiver."
-    (limit isNil or: [(limit isNumber and: [limit > 0 and: [limit asFloat
-        isFinite]])])
-        ifFalse: [self error: 'Invalid sessionIdleTimeout'].
-    sessionIdleTimeout := limit.
-    activeTransport ifNotNil: [:current | current sessionIdleTimeout: limit]
+	"Set the idle timeout in seconds; nil disables it.
+	Arguments:
+		limit - <Number | nil> positive finite limit.
+	Answers:
+		<McpHttpServer> the receiver."
+	(limit isNil or: [(limit isNumber and: [limit > 0 and: [limit asFloat
+		isFinite]])])
+		ifFalse: [self error: 'Invalid sessionIdleTimeout'].
+	sessionIdleTimeout := limit.
+	activeTransport ifNotNil: [:current | current sessionIdleTimeout: limit]
 
 ]
 
 { #category : 'Configuration' }
 McpHttpServer >> sseTransport [
-    "Answer the SSE server transport configured for this server.
+	"Answer the SSE server transport configured for this server.
 
-     Answers:
-        <McpSseServerTransport>."
+	 Answers:
+		<McpSseServerTransport>."
 
-    sseTransport ifNil: [
-        sseTransport :=
-            McpSseServerTransport new
-                mcpServer: self mcpServer;
-                authSettings: self authSettings;
-                allowedHosts: self allowedHosts;
-                allowedOrigins: self allowedOrigins;
-                maximumRequestSize: self maximumRequestSize;
-                requestContextFactory: self requestContextFactory;
-                yourself].
-    ^sseTransport
+	sseTransport ifNil: [
+		sseTransport :=
+			McpSseServerTransport new
+				mcpServer: self mcpServer;
+				authSettings: self authSettings;
+				allowedHosts: self allowedHosts;
+				allowedOrigins: self allowedOrigins;
+				maximumRequestSize: self maximumRequestSize;
+				requestContextFactory: self requestContextFactory;
+				yourself].
+	^sseTransport
 
 ]
 
@@ -454,102 +454,102 @@ McpHttpServer >> sseTransport: anSseTransport [
 
 { #category : 'Execution' }
 McpHttpServer >> start [
-    "Configure and start the SST servlet engine for the MCP endpoints.
+	"Configure and start the SST servlet engine for the MCP endpoints.
 
-     The transport-neutral server must be set before startup. Failed listener
-     configuration or startup discards the candidate transport and engine.
+	 The transport-neutral server must be set before startup. Failed listener
+	 configuration or startup discards the candidate transport and engine.
 
-     Answers:
-        <McpHttpServer> the receiver."
+	 Answers:
+		<McpHttpServer> the receiver."
 
-    | config url candidateEngine handlerResult startupResult appName |
+	| config url candidateEngine handlerResult startupResult appName |
 
-    self isRunning ifTrue: [^self].
-    self mcpServer ifNil: [self error:
-        'MCP server must be configured before startup'].
-    url := ('http://' , self host , ':' , self port printString) sstAsUrl.
-    appName := 'McpApp_' , self port printString.
-    config :=
-        SstWebAppSpecification new
-            appName: appName;
-            contextPath: '/';
-            defineServlet: 'McpHttpServlet' as: 'mcpServlet';
-            addServletMap: self endpointPath forServletNamed: 'mcpServlet';
-            defineServlet: 'McpSseServlet' as: 'sseServlet';
-            addServletMap: self sseTransport sseEndpointPath forServletNamed:
-                'sseServlet';
-            addServletMap: self sseTransport endpointPath forServletNamed:
-                'sseServlet';
-            addServletMap: self sseTransport endpointPath , '/*'
-                forServletNamed: 'sseServlet';
-            yourself.
-    config atContextParameter: 'mcpTransport' put: self transport.
-    config atContextParameter: 'sseTransport' put: self sseTransport.
-    candidateEngine :=
-        SstHttpServletEngine new
-            addServletContext: (SstServletContext fromConfiguration: config);
-            yourself.
-    handlerResult := candidateEngine addHandlerUrl: (url copy path: '/').
-    handlerResult isSstError
-        ifTrue: [
-            candidateEngine shutDown.
-            activeTransport := nil.
-            sseTransport := nil.
-            self error: 'Failed to configure the SST HTTP listener: ' ,
-                handlerResult printString].
-    handlerResult configuration
-        marshalWorkerManager: (SstWorkerManager high: 10 low: 2 strict: false).
-    startupResult := candidateEngine startUp.
-    startupResult isSstError
-        ifTrue: [
-            candidateEngine shutDown.
-            activeTransport := nil.
-            sseTransport := nil.
-            self error: 'Failed to start the SST HTTP server: ' , startupResult
-                printString].
-    servletEngine := candidateEngine.
-    self transport startSessionMaintenance.
-    ^self
+	self isRunning ifTrue: [^self].
+	self mcpServer ifNil: [self error:
+		'MCP server must be configured before startup'].
+	url := ('http://' , self host , ':' , self port printString) sstAsUrl.
+	appName := 'McpApp_' , self port printString.
+	config :=
+		SstWebAppSpecification new
+			appName: appName;
+			contextPath: '/';
+			defineServlet: 'McpHttpServlet' as: 'mcpServlet';
+			addServletMap: self endpointPath forServletNamed: 'mcpServlet';
+			defineServlet: 'McpSseServlet' as: 'sseServlet';
+			addServletMap: self sseTransport sseEndpointPath forServletNamed:
+				'sseServlet';
+			addServletMap: self sseTransport endpointPath forServletNamed:
+				'sseServlet';
+			addServletMap: self sseTransport endpointPath , '/*'
+				forServletNamed: 'sseServlet';
+			yourself.
+	config atContextParameter: 'mcpTransport' put: self transport.
+	config atContextParameter: 'sseTransport' put: self sseTransport.
+	candidateEngine :=
+		SstHttpServletEngine new
+			addServletContext: (SstServletContext fromConfiguration: config);
+			yourself.
+	handlerResult := candidateEngine addHandlerUrl: (url copy path: '/').
+	handlerResult isSstError
+		ifTrue: [
+			candidateEngine shutDown.
+			activeTransport := nil.
+			sseTransport := nil.
+			self error: 'Failed to configure the SST HTTP listener: ' ,
+				handlerResult printString].
+	handlerResult configuration
+		marshalWorkerManager: (SstWorkerManager high: 10 low: 2 strict: false).
+	startupResult := candidateEngine startUp.
+	startupResult isSstError
+		ifTrue: [
+			candidateEngine shutDown.
+			activeTransport := nil.
+			sseTransport := nil.
+			self error: 'Failed to start the SST HTTP server: ' , startupResult
+				printString].
+	servletEngine := candidateEngine.
+	self transport startSessionMaintenance.
+	^self
 
 ]
 
 { #category : 'Resource Management' }
 McpHttpServer >> stop [
-    "Stop the listener and discard all transport sessions.
+	"Stop the listener and discard all transport sessions.
 
-     Answers:
-        <McpHttpServer> the receiver."
+	 Answers:
+		<McpHttpServer> the receiver."
 
-    servletEngine ifNotNil: [servletEngine shutDown].
-    servletEngine := nil.
-    activeTransport ifNotNil: [activeTransport close].
-    activeTransport := nil.
-    sseTransport ifNotNil: [:st |
-        st close.
-        sseTransport := nil].
-    ^self
+	servletEngine ifNotNil: [servletEngine shutDown].
+	servletEngine := nil.
+	activeTransport ifNotNil: [activeTransport close].
+	activeTransport := nil.
+	sseTransport ifNotNil: [:st |
+		st close.
+		sseTransport := nil].
+	^self
 
 ]
 
 { #category : 'Configuration' }
 McpHttpServer >> transport [
-    "Answer the one transport configured for the active server lifecycle.
+	"Answer the one transport configured for the active server lifecycle.
 
-     Answers:
-        <McpStreamableHttpTransport>."
+	 Answers:
+		<McpStreamableHttpTransport>."
 
-    activeTransport ifNil: [
-        activeTransport :=
-            McpStreamableHttpTransport new
-                dispatcher: self dispatcher;
-                authSettings: self authSettings;
-                sessionIdleTimeout: self sessionIdleTimeout;
-                maxSessions: self maxSessions;
-                allowedOrigins: self allowedOrigins;
-                allowedHosts: self allowedHosts;
-                maximumRequestSize: self maximumRequestSize;
-                requestContextFactory: self requestContextFactory;
-                yourself].
-    ^activeTransport
+	activeTransport ifNil: [
+		activeTransport :=
+			McpStreamableHttpTransport new
+				dispatcher: self dispatcher;
+				authSettings: self authSettings;
+				sessionIdleTimeout: self sessionIdleTimeout;
+				maxSessions: self maxSessions;
+				allowedOrigins: self allowedOrigins;
+				allowedHosts: self allowedHosts;
+				maximumRequestSize: self maximumRequestSize;
+				requestContextFactory: self requestContextFactory;
+				yourself].
+	^activeTransport
 
 ]

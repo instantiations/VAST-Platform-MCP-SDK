@@ -154,98 +154,98 @@ McpStreamableHttpTransport >> authSettings [
 
 { #category : 'Configuration' }
 McpStreamableHttpTransport >> authSettings: anAuthSettings [
-    "Set the OAuth authentication settings.
+	"Set the OAuth authentication settings.
 
-     Arguments:
-        anAuthSettings - <McpAuthSettings> or nil.
-     Answers:
-        <McpStreamableHttpTransport> the receiver."
+	 Arguments:
+		anAuthSettings - <McpAuthSettings> or nil.
+	 Answers:
+		<McpStreamableHttpTransport> the receiver."
 
-    anAuthSettings ifNotNil: [anAuthSettings validateConfiguration].
-    authSettings := anAuthSettings.
-    ^self
+	anAuthSettings ifNotNil: [anAuthSettings validateConfiguration].
+	authSettings := anAuthSettings.
+	^self
 
 ]
 
 { #category : 'Resource Management' }
 McpStreamableHttpTransport >> beginResponseForSessionNamed: identifier [
-    "Pin a retained session during actual HTTP entity delivery.
-    Arguments:
-        identifier - <String | nil> response or request session identifier.
-    Answers:
-        <McpStreamableHttpSession | nil> pinned session."
-    identifier ifNil: [^nil].
-    ^sessionMutex critical: [| session |
-        session := sessions at: identifier ifAbsent: [nil].
-        session ifNotNil: [session beginRequestAt: sessionClock value].
-        session]
+	"Pin a retained session during actual HTTP entity delivery.
+	Arguments:
+		identifier - <String | nil> response or request session identifier.
+	Answers:
+		<McpStreamableHttpSession | nil> pinned session."
+	identifier ifNil: [^nil].
+	^sessionMutex critical: [| session |
+		session := sessions at: identifier ifAbsent: [nil].
+		session ifNotNil: [session beginRequestAt: sessionClock value].
+		session]
 
 ]
 
 { #category : 'Execution' }
 McpStreamableHttpTransport >> capacityResponseFor: request [
-    "Return the upstream JSON-RPC internal-error envelope with HTTP 503.
-    Arguments:
-        request - <SstHttpServletRequest> opening request.
-    Answers:
-        <String> JSON-RPC error body with a null request identifier."
-    | payload json |
-    payload := self dispatcher formatError: McpJsonRpcInternalErrorCode
-        message: 'Too many open sessions' id: nil data: nil.
-    json := String streamContents: [:out |
-        (NeoJSONWriter on: out) nextPut: payload].
-    request header responseHeader status: '503 Service Unavailable';
-        contentType: 'application/json'; contentLength: json asUtf8Bytes size.
-    ^json
+	"Return the upstream JSON-RPC internal-error envelope with HTTP 503.
+	Arguments:
+		request - <SstHttpServletRequest> opening request.
+	Answers:
+		<String> JSON-RPC error body with a null request identifier."
+	| payload json |
+	payload := self dispatcher formatError: McpJsonRpcInternalErrorCode
+		message: 'Too many open sessions' id: nil data: nil.
+	json := String streamContents: [:out |
+		(NeoJSONWriter on: out) nextPut: payload].
+	request header responseHeader status: '503 Service Unavailable';
+		contentType: 'application/json'; contentLength: json asUtf8Bytes size.
+	^json
 
 ]
 
 { #category : 'Resource Management' }
 McpStreamableHttpTransport >> close [
-    "Stop idle maintenance and discard retained sessions.
-    Call after the listener has stopped admitting requests.
-    Answers:
-        <McpStreamableHttpTransport> the receiver."
-    | processToStop |
-    sessionMutex critical: [
-        maintenanceStop := true.
-        processToStop := maintenanceProcess.
-        maintenanceProcess := nil.
-        sessions removeAll].
-    processToStop ifNotNil: [processToStop terminate]
+	"Stop idle maintenance and discard retained sessions.
+	Call after the listener has stopped admitting requests.
+	Answers:
+		<McpStreamableHttpTransport> the receiver."
+	| processToStop |
+	sessionMutex critical: [
+		maintenanceStop := true.
+		processToStop := maintenanceProcess.
+		maintenanceProcess := nil.
+		sessions removeAll].
+	processToStop ifNotNil: [processToStop terminate]
 
 ]
 
 { #category : 'Resource Management' }
 McpStreamableHttpTransport >> createSessionForProtocolVersion: protocolVersion
-    clientInfo: implementationInfo
-    capabilities: capabilityDeclaration [
-    "Create and retain a session with negotiated client metadata.
+	clientInfo: implementationInfo
+	capabilities: capabilityDeclaration [
+	"Create and retain a session with negotiated client metadata.
 
-     Arguments:
-        protocolVersion - <String> negotiated protocol version.
-        implementationInfo - <KeyedCollection> client information.
-        capabilityDeclaration - <KeyedCollection> client capabilities.
-     Answers:
-        <McpStreamableHttpSession> retained session."
+	 Arguments:
+		protocolVersion - <String> negotiated protocol version.
+		implementationInfo - <KeyedCollection> client information.
+		capabilityDeclaration - <KeyedCollection> client capabilities.
+	 Answers:
+		<McpStreamableHttpSession> retained session."
 
-    | session |
+	| session |
 
-    session :=
-        McpStreamableHttpSession
-            id: UUID new asString
-            protocolVersion: protocolVersion
-            clientInfo: implementationInfo
-            capabilities: capabilityDeclaration.
-    sessionMutex critical: [
-        self expireIdleSessionsLocked.
-        (maxSessions notNil and: [sessions size + pendingInitializations >=
-            maxSessions])
-            ifTrue: [^nil].
-        session beginRequestAt: sessionClock value.
-        session endRequestAt: sessionClock value.
-        sessions at: session id put: session].
-    ^session
+	session :=
+		McpStreamableHttpSession
+			id: UUID new asString
+			protocolVersion: protocolVersion
+			clientInfo: implementationInfo
+			capabilities: capabilityDeclaration.
+	sessionMutex critical: [
+		self expireIdleSessionsLocked.
+		(maxSessions notNil and: [sessions size + pendingInitializations >=
+			maxSessions])
+			ifTrue: [^nil].
+		session beginRequestAt: sessionClock value.
+		session endRequestAt: sessionClock value.
+		sessions at: session id put: session].
+	^session
 
 ]
 
@@ -327,39 +327,39 @@ McpStreamableHttpTransport >> encodeHeaderValue: aString [
 
 { #category : 'Resource Management' }
 McpStreamableHttpTransport >> endResponseForSession: session [
-    "Release a delivery pin after successful or failed entity writing.
-    Arguments:
-        session - <McpStreamableHttpSession | nil> pin returned by begin.
-    Answers:
-        <McpStreamableHttpTransport> the receiver."
-    session ifNotNil: [
-        sessionMutex critical: [session endRequestAt: sessionClock value]]
+	"Release a delivery pin after successful or failed entity writing.
+	Arguments:
+		session - <McpStreamableHttpSession | nil> pin returned by begin.
+	Answers:
+		<McpStreamableHttpTransport> the receiver."
+	session ifNotNil: [
+		sessionMutex critical: [session endRequestAt: sessionClock value]]
 
 ]
 
 { #category : 'Resource Management' }
 McpStreamableHttpTransport >> expireIdleSessions [
-    "Remove expired idle sessions without expiring work in progress.
-    Answers:
-        <Integer> number of sessions removed."
-    ^sessionMutex critical: [self expireIdleSessionsLocked]
+	"Remove expired idle sessions without expiring work in progress.
+	Answers:
+		<Integer> number of sessions removed."
+	^sessionMutex critical: [self expireIdleSessionsLocked]
 
 ]
 
 { #category : 'Resource Management',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> expireIdleSessionsLocked [
-    "Reap under sessionMutex, using one clock sample for this pass.
-    Answers:
-        <Integer> expired session count."
-    | now expired |
-    now := sessionClock value.
-    expired := OrderedCollection new.
-    sessions keysAndValuesDo: [:identifier :session |
-        (session isIdleAt: now timeout: sessionIdleTimeout)
-            ifTrue: [expired add: identifier]].
-    expired do: [:identifier | sessions removeKey: identifier].
-    ^expired size
+	"Reap under sessionMutex, using one clock sample for this pass.
+	Answers:
+		<Integer> expired session count."
+	| now expired |
+	now := sessionClock value.
+	expired := OrderedCollection new.
+	sessions keysAndValuesDo: [:identifier :session |
+		(session isIdleAt: now timeout: sessionIdleTimeout)
+			ifTrue: [expired add: identifier]].
+	expired do: [:identifier | sessions removeKey: identifier].
+	^expired size
 
 ]
 
@@ -456,108 +456,108 @@ McpStreamableHttpTransport >> formatSuccessResponseFor: aRequest payload: dispat
 
 { #category : 'Execution' }
 McpStreamableHttpTransport >> handleDeleteRequest: aRequest [
-    "Terminate the identified MCP Streamable HTTP session.
+	"Terminate the identified MCP Streamable HTTP session.
 
-     Arguments:
-        aRequest - <SstHttpServletRequest>.
-     Answers:
-        <String> empty HTTP response entity."
+	 Arguments:
+		aRequest - <SstHttpServletRequest>.
+	 Answers:
+		<String> empty HTTP response entity."
 
-    | validationResult session removedSession |
+	| validationResult session removedSession |
 
-    validationResult := self validateOriginFor: aRequest.
-    validationResult ifNotNil: [^validationResult].
-    validationResult := self validateAuthenticationFor: aRequest.
-    validationResult ifNotNil: [^validationResult].
-    session := self sessionForRequest: aRequest.
-    session ifNil: [^''].
-    validationResult := self validateProtocolVersionFor: aRequest session:
-        session.
-    validationResult ifNotNil: [^validationResult].
-    removedSession := self removeSessionNamed: session id.
-    removedSession ifNil: [
-        aRequest header responseHeader
-            status: '404 Not Found';
-            contentLength: 0.
-        ^''].
-    aRequest header responseHeader
-        status: '204 No Content';
-        contentLength: 0.
-    ^''
+	validationResult := self validateOriginFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
+	validationResult := self validateAuthenticationFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
+	session := self sessionForRequest: aRequest.
+	session ifNil: [^''].
+	validationResult := self validateProtocolVersionFor: aRequest session:
+		session.
+	validationResult ifNotNil: [^validationResult].
+	removedSession := self removeSessionNamed: session id.
+	removedSession ifNil: [
+		aRequest header responseHeader
+			status: '404 Not Found';
+			contentLength: 0.
+		^''].
+	aRequest header responseHeader
+		status: '204 No Content';
+		contentLength: 0.
+	^''
 
 ]
 
 { #category : 'Execution' }
 McpStreamableHttpTransport >> handleGetRequest: aRequest [
-    "Reject unsupported standalone SSE streams after validating Origin.
+	"Reject unsupported standalone SSE streams after validating Origin.
 
-     Arguments:
-        aRequest - <SstHttpServletRequest>.
-     Answers:
-        <String> empty HTTP response entity."
+	 Arguments:
+		aRequest - <SstHttpServletRequest>.
+	 Answers:
+		<String> empty HTTP response entity."
 
-    | validationResult |
+	| validationResult |
 
-    validationResult := self validateOriginFor: aRequest.
-    validationResult ifNotNil: [^validationResult].
-    validationResult := self validateAuthenticationFor: aRequest.
-    validationResult ifNotNil: [^validationResult].
-    aRequest header responseHeader
-        status: '405 Method Not Allowed';
-        contentLength: 0.
-    aRequest header responseHeader at: 'Allow' put: 'POST, DELETE'.
-    ^''
+	validationResult := self validateOriginFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
+	validationResult := self validateAuthenticationFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
+	aRequest header responseHeader
+		status: '405 Method Not Allowed';
+		contentLength: 0.
+	aRequest header responseHeader at: 'Allow' put: 'POST, DELETE'.
+	^''
 
 ]
 
 { #category : 'Execution' }
 McpStreamableHttpTransport >> handleInitializeRequest: aRequest message: parsedRequest [
-    "Reserve capacity before dispatch, pin the opening, and roll back failures.
-    Arguments:
-        aRequest - <SstHttpServletRequest> HTTP request.
-        parsedRequest - <KeyedCollection> initialize message.
-    Answers:
-        <String> serialized response, or HTTP 503 when capacity is full."
-    | dispatcherResponse result parameters session completed reserved body |
-    ((self sessionIdFrom: aRequest) notNil or: [
-        (parsedRequest includesKey: 'id') not]) ifTrue: [
-            aRequest header responseHeader
-                status: '400 Bad Request'; contentLength: 0.
-            ^''].
-    self reserveSessionSlot ifFalse: [^self capacityResponseFor: aRequest].
-    reserved := true.
-    session := nil.
-    completed := false.
-    [
-        dispatcherResponse := self dispatcher dispatch: parsedRequest.
-        (dispatcherResponse includesKey: 'error') ifTrue: [
-            ^self formatSuccessResponseFor: aRequest payload:
-                dispatcherResponse].
-        result := dispatcherResponse at: 'result'.
-        parameters := parsedRequest at: 'params'.
-        session := McpStreamableHttpSession id: UUID new asString
-            protocolVersion: (result at: 'protocolVersion')
-            clientInfo: (parameters at: 'clientInfo')
-            capabilities: (parameters at: 'capabilities').
-        sessionMutex critical: [
-            session beginRequestAt: sessionClock value.
-            sessions at: session id put: session.
-            pendingInitializations := pendingInitializations - 1.
-            reserved := false].
-        aRequest header responseHeader at: 'MCP-Session-Id' put: session id.
-        body := self formatSuccessResponseFor: aRequest payload:
-            dispatcherResponse.
-        completed := true.
-        ^body
-    ] ensure: [
-        sessionMutex critical: [
-            reserved ifTrue: [pendingInitializations := pendingInitializations -
-                1].
-            session ifNotNil: [
-                session activeRequestCount > 0 ifTrue: [
-                    session endRequestAt: sessionClock value].
-                completed ifFalse: [sessions removeKey: session id ifAbsent:
-                []]]]]
+	"Reserve capacity before dispatch, pin the opening, and roll back failures.
+	Arguments:
+		aRequest - <SstHttpServletRequest> HTTP request.
+		parsedRequest - <KeyedCollection> initialize message.
+	Answers:
+		<String> serialized response, or HTTP 503 when capacity is full."
+	| dispatcherResponse result parameters session completed reserved body |
+	((self sessionIdFrom: aRequest) notNil or: [
+		(parsedRequest includesKey: 'id') not]) ifTrue: [
+			aRequest header responseHeader
+				status: '400 Bad Request'; contentLength: 0.
+			^''].
+	self reserveSessionSlot ifFalse: [^self capacityResponseFor: aRequest].
+	reserved := true.
+	session := nil.
+	completed := false.
+	[
+		dispatcherResponse := self dispatcher dispatch: parsedRequest.
+		(dispatcherResponse includesKey: 'error') ifTrue: [
+			^self formatSuccessResponseFor: aRequest payload:
+				dispatcherResponse].
+		result := dispatcherResponse at: 'result'.
+		parameters := parsedRequest at: 'params'.
+		session := McpStreamableHttpSession id: UUID new asString
+			protocolVersion: (result at: 'protocolVersion')
+			clientInfo: (parameters at: 'clientInfo')
+			capabilities: (parameters at: 'capabilities').
+		sessionMutex critical: [
+			session beginRequestAt: sessionClock value.
+			sessions at: session id put: session.
+			pendingInitializations := pendingInitializations - 1.
+			reserved := false].
+		aRequest header responseHeader at: 'MCP-Session-Id' put: session id.
+		body := self formatSuccessResponseFor: aRequest payload:
+			dispatcherResponse.
+		completed := true.
+		^body
+	] ensure: [
+		sessionMutex critical: [
+			reserved ifTrue: [pendingInitializations := pendingInitializations -
+				1].
+			session ifNotNil: [
+				session activeRequestCount > 0 ifTrue: [
+					session endRequestAt: sessionClock value].
+				completed ifFalse: [sessions removeKey: session id ifAbsent:
+				[]]]]]
 
 ]
 
@@ -610,49 +610,49 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 
 { #category : 'Execution' }
 McpStreamableHttpTransport >> handlePostRequest: aRequest [
-    "Process one MCP message over the Streamable HTTP POST endpoint.
+	"Process one MCP message over the Streamable HTTP POST endpoint.
 
-     Successful initialization creates a server session. Every later message
-     must identify that session, use its negotiated protocol version, and
-     respect its initialization state.
-     Modern protocol versions (2026-07-28+) are sessionless.
+	 Successful initialization creates a server session. Every later message
+	 must identify that session, use its negotiated protocol version, and
+	 respect its initialization state.
+	 Modern protocol versions (2026-07-28+) are sessionless.
 
-     Arguments:
-        aRequest - <SstHttpServletRequest>.
-     Answers:
-        <String> HTTP response entity."
+	 Arguments:
+		aRequest - <SstHttpServletRequest>.
+	 Answers:
+		<String> HTTP response entity."
 
-    | parsedRequest validationResult session protocolVersion |
+	| parsedRequest validationResult session protocolVersion |
 
-    validationResult := self validateHeadersFor: aRequest.
-    validationResult ifNotNil: [^validationResult].
-    validationResult := self validateAuthenticationFor: aRequest.
-    validationResult ifNotNil: [^validationResult].
-    parsedRequest := self parseRequestBody: aRequest.
-    (parsedRequest isKindOf: String) ifTrue: [^parsedRequest].
-    validationResult := self validateProtocolVersionFor: aRequest parsedRequest:
-        parsedRequest.
-    validationResult ifNotNil: [^validationResult].
+	validationResult := self validateHeadersFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
+	validationResult := self validateAuthenticationFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
+	parsedRequest := self parseRequestBody: aRequest.
+	(parsedRequest isKindOf: String) ifTrue: [^parsedRequest].
+	validationResult := self validateProtocolVersionFor: aRequest parsedRequest:
+		parsedRequest.
+	validationResult ifNotNil: [^validationResult].
 
-    protocolVersion := aRequest getHeader: 'MCP-Protocol-Version'.
-    protocolVersion ifNil: [protocolVersion := aRequest getHeader:
-        'mcp-protocol-version'].
-    (McpProtocolVersion isModern: protocolVersion)
-        ifTrue: [^self handleModernPostRequest: aRequest message:
-            parsedRequest].
+	protocolVersion := aRequest getHeader: 'MCP-Protocol-Version'.
+	protocolVersion ifNil: [protocolVersion := aRequest getHeader:
+		'mcp-protocol-version'].
+	(McpProtocolVersion isModern: protocolVersion)
+		ifTrue: [^self handleModernPostRequest: aRequest message:
+			parsedRequest].
 
-    (self isInitializeRequest: parsedRequest)
-        ifTrue: [^self handleInitializeRequest: aRequest message:
-            parsedRequest].
+	(self isInitializeRequest: parsedRequest)
+		ifTrue: [^self handleInitializeRequest: aRequest message:
+			parsedRequest].
 
-    session := self sessionForRequest: aRequest.
-    session ifNil: [^''].
-    validationResult := self validateProtocolVersionFor: aRequest session:
-        session.
-    validationResult ifNotNil: [^validationResult].
-    ^self withSession: session request: aRequest do: [
-        self handleSessionMessage: parsedRequest request: aRequest session:
-            session]
+	session := self sessionForRequest: aRequest.
+	session ifNil: [^''].
+	validationResult := self validateProtocolVersionFor: aRequest session:
+		session.
+	validationResult ifNotNil: [^validationResult].
+	^self withSession: session request: aRequest do: [
+		self handleSessionMessage: parsedRequest request: aRequest session:
+			session]
 
 ]
 
@@ -711,24 +711,24 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 { #category : 'Initialization',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> initialize [
-    "Initialize origin and host policies, session storage, and request limits.
+	"Initialize origin and host policies, session storage, and request limits.
 
-     Answers:
-        <McpStreamableHttpTransport> the receiver."
+	 Answers:
+		<McpStreamableHttpTransport> the receiver."
 
-    super initialize.
-    allowedOrigins := Set new.
-    allowedHosts := Set new.
-    sessions := Dictionary new.
-    sessionMutex := Semaphore forMutualExclusion.
-    maximumRequestSize := 10 * 1024 * 1024.
-    requestContextFactory := nil.
-    sessionIdleTimeout := 1800.
-    maxSessions := 10000.
-    sessionClock := [DateAndTime now asUnixTime].
-    pendingInitializations := 0.
-    maintenanceStop := false.
-    ^self
+	super initialize.
+	allowedOrigins := Set new.
+	allowedHosts := Set new.
+	sessions := Dictionary new.
+	sessionMutex := Semaphore forMutualExclusion.
+	maximumRequestSize := 10 * 1024 * 1024.
+	requestContextFactory := nil.
+	sessionIdleTimeout := 1800.
+	maxSessions := 10000.
+	sessionClock := [DateAndTime now asUnixTime].
+	pendingInitializations := 0.
+	maintenanceStop := false.
+	^self
 
 ]
 
@@ -804,23 +804,23 @@ McpStreamableHttpTransport >> markSessionReady: session [
 
 { #category : 'Accessing' }
 McpStreamableHttpTransport >> maxSessions [
-    "Answer the maximum retained legacy sessions; nil disables the limit.
-    Answers:
-        <Number | nil> configured limit."
-    ^maxSessions
+	"Answer the maximum retained legacy sessions; nil disables the limit.
+	Answers:
+		<Number | nil> configured limit."
+	^maxSessions
 
 ]
 
 { #category : 'Configuration' }
 McpStreamableHttpTransport >> maxSessions: limit [
-    "Set the maximum retained legacy sessions; nil disables it.
-    Arguments:
-        limit - <Number | nil> positive finite limit.
-    Answers:
-        <McpStreamableHttpTransport> the receiver."
-    (limit isNil or: [(limit isInteger and: [limit > 0])])
-        ifFalse: [self error: 'Invalid maxSessions'].
-    sessionMutex critical: [maxSessions := limit]
+	"Set the maximum retained legacy sessions; nil disables it.
+	Arguments:
+		limit - <Number | nil> positive finite limit.
+	Answers:
+		<McpStreamableHttpTransport> the receiver."
+	(limit isNil or: [(limit isInteger and: [limit > 0])])
+		ifFalse: [self error: 'Invalid maxSessions'].
+	sessionMutex critical: [maxSessions := limit]
 
 ]
 
@@ -982,42 +982,42 @@ McpStreamableHttpTransport >> requestContextFor: aRequest session: session [
 { #category : 'Resource Management',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> reserveSessionSlot [
-    "Atomically reserve admission before dispatching initialization.
-    Answers:
-        <Boolean> false when the configured limit has been reached."
-    ^sessionMutex critical: [
-        self expireIdleSessionsLocked.
-        (maxSessions notNil and: [
-            sessions size + pendingInitializations >= maxSessions])
-            ifTrue: [false]
-            ifFalse: [pendingInitializations := pendingInitializations + 1.
-                true]]
+	"Atomically reserve admission before dispatching initialization.
+	Answers:
+		<Boolean> false when the configured limit has been reached."
+	^sessionMutex critical: [
+		self expireIdleSessionsLocked.
+		(maxSessions notNil and: [
+			sessions size + pendingInitializations >= maxSessions])
+			ifTrue: [false]
+			ifFalse: [pendingInitializations := pendingInitializations + 1.
+				true]]
 
 ]
 
 { #category : 'Configuration' }
 McpStreamableHttpTransport >> sessionClock: clockBlock [
-    "Install a deterministic or monotonic clock before creating sessions.
-    Arguments:
-        clockBlock - <Block> zero arguments, answers seconds as a Number.
-    Answers:
-        <McpStreamableHttpTransport> the receiver."
-    (clockBlock isBlock and: [clockBlock numArgs = 0])
-        ifFalse: [self error: 'Session clock must be a zero-argument block'].
-    sessionMutex critical: [
-        (sessions isEmpty and: [pendingInitializations = 0])
-            ifFalse: [self error:
-                'Set the session clock before creating sessions'].
-        sessionClock := clockBlock]
+	"Install a deterministic or monotonic clock before creating sessions.
+	Arguments:
+		clockBlock - <Block> zero arguments, answers seconds as a Number.
+	Answers:
+		<McpStreamableHttpTransport> the receiver."
+	(clockBlock isBlock and: [clockBlock numArgs = 0])
+		ifFalse: [self error: 'Session clock must be a zero-argument block'].
+	sessionMutex critical: [
+		(sessions isEmpty and: [pendingInitializations = 0])
+			ifFalse: [self error:
+				'Set the session clock before creating sessions'].
+		sessionClock := clockBlock]
 
 ]
 
 { #category : 'Accessing' }
 McpStreamableHttpTransport >> sessionCount [
-    "Answer retained session count after synchronously expiring idle entries.
-    Answers:
-        <Integer> current session count."
-    ^sessionMutex critical: [self expireIdleSessionsLocked. sessions size]
+	"Answer retained session count after synchronously expiring idle entries.
+	Answers:
+		<Integer> current session count."
+	^sessionMutex critical: [self expireIdleSessionsLocked. sessions size]
 
 ]
 
@@ -1070,62 +1070,62 @@ McpStreamableHttpTransport >> sessionIdFrom: aRequest [
 
 { #category : 'Accessing' }
 McpStreamableHttpTransport >> sessionIdleTimeout [
-    "Answer the idle timeout in seconds; nil disables the limit.
-    Answers:
-        <Number | nil> configured limit."
-    ^sessionIdleTimeout
+	"Answer the idle timeout in seconds; nil disables the limit.
+	Answers:
+		<Number | nil> configured limit."
+	^sessionIdleTimeout
 
 ]
 
 { #category : 'Configuration' }
 McpStreamableHttpTransport >> sessionIdleTimeout: limit [
-    "Set the idle timeout in seconds; nil disables it.
-    Arguments:
-        limit - <Number | nil> positive finite limit.
-    Answers:
-        <McpStreamableHttpTransport> the receiver."
-    (limit isNil or: [(limit isNumber and: [limit > 0 and: [limit asFloat
-        isFinite]])])
-        ifFalse: [self error: 'Invalid sessionIdleTimeout'].
-    sessionMutex critical: [sessionIdleTimeout := limit]
+	"Set the idle timeout in seconds; nil disables it.
+	Arguments:
+		limit - <Number | nil> positive finite limit.
+	Answers:
+		<McpStreamableHttpTransport> the receiver."
+	(limit isNil or: [(limit isNumber and: [limit > 0 and: [limit asFloat
+		isFinite]])])
+		ifFalse: [self error: 'Invalid sessionIdleTimeout'].
+	sessionMutex critical: [sessionIdleTimeout := limit]
 
 ]
 
 { #category : 'Resource Management',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> sessionNamed: sessionId ifAbsent: absentBlock [
-    "Answer a session without exposing mutable session storage.
+	"Answer a session without exposing mutable session storage.
 
-     Arguments:
-        sessionId - <String> opaque session identifier.
-        absentBlock - <Block> evaluated when the session is unknown.
-     Answers:
-        <McpStreamableHttpSession> or the absent-block result."
+	 Arguments:
+		sessionId - <String> opaque session identifier.
+		absentBlock - <Block> evaluated when the session is unknown.
+	 Answers:
+		<McpStreamableHttpSession> or the absent-block result."
 
-    | session found |
+	| session found |
 
-    found := true.
-    sessionMutex critical: [self expireIdleSessionsLocked. session := sessions
-        at: sessionId ifAbsent: [found := false]].
-    ^found ifTrue: [session] ifFalse: [absentBlock value]
+	found := true.
+	sessionMutex critical: [self expireIdleSessionsLocked. session := sessions
+		at: sessionId ifAbsent: [found := false]].
+	^found ifTrue: [session] ifFalse: [absentBlock value]
 
 ]
 
 { #category : 'Resource Management' }
 McpStreamableHttpTransport >> startSessionMaintenance [
-    "Start one owned idle sweep process for a hosted transport.
-    At most one second separates background sweeps. Request lookup and
-    admission also expire sessions synchronously at the exact clock boundary.
-    Answers:
-        <McpStreamableHttpTransport> the receiver."
-    sessionMutex critical: [
-        maintenanceProcess ifNotNil: [^self].
-        maintenanceStop := false.
-        maintenanceProcess := [
-            [maintenanceStop] whileFalse: [
-                (Delay forSeconds: 1) wait.
-                maintenanceStop ifFalse: [self expireIdleSessions]]
-        ] forkAt: Processor userBackgroundPriority]
+	"Start one owned idle sweep process for a hosted transport.
+	At most one second separates background sweeps. Request lookup and
+	admission also expire sessions synchronously at the exact clock boundary.
+	Answers:
+		<McpStreamableHttpTransport> the receiver."
+	sessionMutex critical: [
+		maintenanceProcess ifNotNil: [^self].
+		maintenanceStop := false.
+		maintenanceProcess := [
+			[maintenanceStop] whileFalse: [
+				(Delay forSeconds: 1) wait.
+				maintenanceStop ifFalse: [self expireIdleSessions]]
+		] forkAt: Processor userBackgroundPriority]
 
 ]
 
@@ -1545,23 +1545,23 @@ McpStreamableHttpTransport >> validateRoutingHeadersFor: aRequest message: parse
 { #category : 'Resource Management',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> withSession: session request: request do: operation [
-    "Pin a still-retained session for one synchronous HTTP response.
-    Arguments:
-        session - <McpStreamableHttpSession> candidate.
-        request - <SstHttpServletRequest> request receiving an expiry error.
-        operation - <Block> zero arguments, performs dispatch and encoding.
-    Answers:
-        <String> HTTP response body."
-    | retained |
-    retained := sessionMutex critical: [
-        self expireIdleSessionsLocked.
-        (sessions at: session id ifAbsent: [nil]) == session
-            ifTrue: [session beginRequestAt: sessionClock value. true]
-            ifFalse: [false]].
-    retained ifFalse: [
-        request header responseHeader status: '404 Not Found'; contentLength: 0.
-        ^''].
-    ^[operation value] ensure: [
-        sessionMutex critical: [session endRequestAt: sessionClock value]]
+	"Pin a still-retained session for one synchronous HTTP response.
+	Arguments:
+		session - <McpStreamableHttpSession> candidate.
+		request - <SstHttpServletRequest> request receiving an expiry error.
+		operation - <Block> zero arguments, performs dispatch and encoding.
+	Answers:
+		<String> HTTP response body."
+	| retained |
+	retained := sessionMutex critical: [
+		self expireIdleSessionsLocked.
+		(sessions at: session id ifAbsent: [nil]) == session
+			ifTrue: [session beginRequestAt: sessionClock value. true]
+			ifFalse: [false]].
+	retained ifFalse: [
+		request header responseHeader status: '404 Not Found'; contentLength: 0.
+		^''].
+	^[operation value] ensure: [
+		sessionMutex critical: [session endRequestAt: sessionClock value]]
 
 ]
