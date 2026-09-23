@@ -232,7 +232,7 @@ TestMcpVastInterop >> interopUnicodeText [
 	"Include combining scalars, supplementary Unicode and escaped controls."
 
 	^(UnicodeString utf8:
-		#(99 97 102 195 169 32 101 204 129 32 230 151 165 230 156 172
+		#(226 131 157 99 97 102 195 169 32 101 204 129 32 230 151 165 230 156 172
 		  32 240 159 152 128 32 34 92 9 13 10 0 8 12) asByteArray) asString
 ]
 

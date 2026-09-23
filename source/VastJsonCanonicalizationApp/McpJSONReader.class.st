@@ -4,6 +4,12 @@ Class {
 	#category : 'VastJsonCanonicalizationApp'
 }
 
+{ #category : 'instance creation' }
+McpJSONReader class >> on: readStream [
+
+	^ super on: (McpPeekableStream on: (McpCharacterGraphemeStream on: (McpUnicodeScalarStream on: readStream)))
+]
+
 { #category : 'private',
   #vaVisibility : 'private' }
 McpJSONReader >> characterClass [
