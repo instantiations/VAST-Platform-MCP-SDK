@@ -1,0 +1,25 @@
+{
+	#formatVersion : '1.1',
+	#name : 'VastMcp Tests',
+	#versionName : '0.9.4',
+	#applications : [
+		{
+			#name : 'VastMcpHttpTestsApp'
+		},
+		{
+			#name : 'VastMcpTestsApp'
+		}
+	],
+	#conditions : [
+		{
+			#condition : 'true',
+			#requiredMaps : [
+				{
+					#name : 'VastMcp',
+					#versionName : '0.9.4'
+				}
+			]
+		}
+	],
+	#notes : 'SUnit test suite for the VAST Smalltalk Model Context Protocol (MCP)\r\nimplementation.\r\n\r\n## Versions\r\n0.9.4 - Tests for VastMcp 0.9.4 (mcp-python v2.2.0)\r\n0.9.3 - Initial Release (VastMcp 0.9.3 / mcp-python v2.1.1)\r\n\r\nVersion names track the corresponding VastMcp configuration map.\r\nLoad matching versions of the implementation and test maps.\r\n\r\nTests cover the modern 2026-07-28 specification and backward compatibility\r\nwith earlier protocol eras (2025-11-25, 2025-06-18, 2025-03-26,\r\nand 2024-11-05).\r\n\r\nCoverage includes:\r\n- Protocol lifecycle, discovery, initialization, and version negotiation\r\n- Tools, resources, prompts, completions, and subscriptions\r\n- Client and server transport behavior\r\n- Multi-round-trip requests and dynamic tool parameter resolution\r\n- Request state integrity, cancellation, and progress notifications\r\n- Response caching, invalidation, and session management\r\n- URI templates, path security, authentication, and transport security\r\n- Protocol extensions and MCP Apps UI support\r\n- Regression tests for changes introduced with mcp-python v2.2.0\r\n\r\nPrerequisites:\r\nLoad the matching VastMcp configuration map\r\nLoad ST: SUnit'
+}

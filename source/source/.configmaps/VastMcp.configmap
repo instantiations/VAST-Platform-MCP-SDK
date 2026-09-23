@@ -1,0 +1,18 @@
+{
+	#formatVersion : '1.1',
+	#name : 'VastMcp',
+	#versionName : '0.9.4',
+	#applications : [
+		{
+			#name : 'VastJsonCanonicalizationApp'
+		},
+		{
+			#name : 'VastMcpApp'
+		},
+		{
+			#name : 'VastMcpHttpApp'
+		}
+	],
+	#conditions : [],
+	#notes : 'Model Context Protocol (MCP) implementation for VAST Smalltalk.\r\n\r\n## Versions\r\n0.9.4 - Updated to mcp-python v2.2.0\r\n0.9.3 - Initial Release (mcp-python v2.1.1)\r\n\r\nImplements the modern 2026-07-28 specification with complete backward\r\ncompatibility across all protocol eras (2025-11-25, 2025-06-18, 2025-03-26,\r\nand 2024-11-05), in full feature parity with mcp-python v2.2.0.\r\n\r\nFeatures:\r\n- Transports:\r\n  * Streamable HTTP (modern sessionless & legacy session-based with SST)\r\n  * Native OS Stdio Client (McpStdioClientTransport via OsProcessesApp)\r\n  * Native OS Stdio Server (McpStdioServer for Claude Desktop, Cursor, CLion)\r\n  * Direct In-Memory Transport (McpInMemoryClientTransport, McpClient forServer:)\r\n  * Legacy Dual-Endpoint SSE Client (McpLegacySseClientTransport)\r\n  * Legacy Dual-Endpoint SSE Server (McpSseServerTransport, McpSseServlet)\r\n\r\n- 100% Core Request & Notification Method Coverage:\r\n  * Lifecycle: server/discover, initialize, ping, priorDiscover bypass\r\n  * Tools: tools/list, tools/call (with SEP-2243 parameter routing headers)\r\n  * Resources: resources/list, resources/read, resources/templates/list\r\n  * Prompts: prompts/list, prompts/get\r\n  * Completions: completion/complete (prompt arguments & resource templates)\r\n  * URI Templates: RFC 6570 Level 1-4 matching & variable extraction\r\n    (McpUriTemplate)\r\n  * Path Sandbox Security: directory traversal and null byte prevention\r\n    (McpPathSecurity)\r\n  * Subscriptions: subscriptions/listen with pub-sub event bus\r\n    (McpSubscriptionBus) and broadcast change events\r\n    (notifyToolsChanged, notifyResourceUpdated:, etc.)\r\n  * Cancellation: notifications/cancelled support on client and server\r\n\r\n- Advanced Protocol Capabilities:\r\n  * Multi-Round-Trip Requests\r\n    (MRTR / input_required across tools, prompts, resources)\r\n  * Dynamic Tool Parameter Resolvers (Resolve / Elicit / Sample / ListRoots)\r\n  * Request State Integrity\r\n    (McpRequestStateSecurity with HMAC-SHA256 & JCS digests)\r\n  * Progress Reporting (notifications/progress with progressToken)\r\n  * Client-Side Response Caching (SEP-2549 with list_changed invalidation)\r\n  * Client-Side Session Group (McpSessionGroup for multi-server aggregation)\r\n  * Automatic SEP-2243 Routing Header Emission\r\n    (Mcp-Param-*) on modern connections\r\n  * Pluggable Extensions Architecture\r\n    (SEP-2133 McpExtension with -32021 validation)\r\n  * MCP Apps UI Extension (McpAppsExtension for io.modelcontextprotocol/ui)\r\n  * OAuth 2.0 / OIDC Bearer Authentication & RFC 8414 / RFC 9207 Metadata\r\n    (McpAuthSettings)\r\n  * Transport Security: DNS rebinding protection with Host allowlists\r\n    (allowedHosts)\r\n\r\n- ADK Integration (VastAdkMcpApp):\r\n  * Exposes remote MCP tools directly to Google ADK agents across HTTP,\r\n    SSE, and Stdio transports.\r\n\r\nPrerequisites:\r\nLoad ST: Server Smalltalk (SST) - HTTP\r\nLoad ST: JSON Support'
+}
