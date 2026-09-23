@@ -4,6 +4,18 @@ Class {
 	#category : 'VastJsonCanonicalizationApp'
 }
 
+{ #category : 'convenience' }
+McpJSONReader class >> fromString: string [
+
+	^ (super on: (McpPeekableStream on: (McpCharacterGraphemeStream on: string unicodeScalars))) next
+]
+
+{ #category : 'convenience' }
+McpJSONReader class >> fromString: string as: schema [
+
+	^ (super on: (McpPeekableStream on: (McpCharacterGraphemeStream on: string unicodeScalars))) nextAs: schema
+]
+
 { #category : 'instance creation' }
 McpJSONReader class >> on: readStream [
 
