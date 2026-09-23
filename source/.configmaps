@@ -2,7 +2,6 @@
 	{
 		#formatVersion : '1.1',
 		#name : 'VastMcp',
-		#versionName : '0.9.4',
 		#applications : [
 			{
 				#name : 'VastJsonCanonicalizationApp'
@@ -38,7 +37,6 @@
 	{
 		#formatVersion : '1.1',
 		#name : 'VastMcp Tests',
-		#versionName : '0.9.4',
 		#applications : [
 			{
 				#name : 'VastMcpHttpTestsApp'
@@ -56,8 +54,7 @@
 						#versionName : 'V 15.0.0  [593]'
 					},
 					{
-						#name : 'VastMcp',
-						#versionName : '0.9.4'
+						#name : 'VastMcp'
 					}
 				]
 			}
