@@ -281,7 +281,7 @@ TestMcpClientTools >> testCallValidatesDiscoveredOutputAndReusesSchema [
 	"Discovery happens once for a known schema and validates each result."
 	| result definition schema returned |
 	self connectWithToolsCapability.
-	schema := NeoJSONReader fromString:
+	schema := McpJSONReader fromString:
 		'{"type":"object","properties":{"v":{"type":"integer"}}}'.
 	definition := self toolDefinitionNamed: 'probe'.
 	definition at: 'outputSchema' put: schema.

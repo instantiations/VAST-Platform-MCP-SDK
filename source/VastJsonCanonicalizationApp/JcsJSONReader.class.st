@@ -16,7 +16,7 @@ A reader is confined to one parse and must not be shared concurrently.
 "
 Class {
 	#name : 'JcsJSONReader',
-	#superclass : 'NeoJSONReader',
+	#superclass : 'McpJSONReader',
 	#category : 'VastJsonCanonicalizationApp'
 }
 

@@ -314,7 +314,7 @@ McpHttpClientTransport >> doSendListenRequest: requestDictionary id: requestId h
 					parseAvailableBytes: (receiveBuffer , chunk asByteArray)
 					do: [:event |
 						event data isEmpty ifFalse: [| parsed |
-							parsed := [NeoJSONReader fromString: event data]
+							parsed := [McpJSONReader fromString: event data]
 								on: Error do: [:e | nil].
 							parsed ifNotNil: [
 								((parsed at: 'id' ifAbsent: [nil]) = requestId
@@ -600,7 +600,7 @@ McpHttpClientTransport >> parseResponse: responseBytes contentType: contentType 
 			events do: [:event | | isResponse parsed |
 				event data isEmpty
 					ifFalse: [
-						parsed := NeoJSONReader fromString: event data.
+						parsed := McpJSONReader fromString: event data.
 						(parsed isKindOf: KeyedCollection)
 							ifFalse: [self error: 'Invalid SSE message: expected an object'].
 						(parsed at: 'jsonrpc' ifAbsent: [nil]) = '2.0'
@@ -619,7 +619,7 @@ McpHttpClientTransport >> parseResponse: responseBytes contentType: contentType 
 	mediaType = 'application/json'
 		ifFalse: [self error: 'Unsupported MCP response Content-Type: ' , mediaType].
 	responseString isEmpty ifTrue: [self error: 'MCP JSON response body is empty'].
-	^NeoJSONReader fromString: responseString
+	^McpJSONReader fromString: responseString
 ]
 
 { #category : 'Configuration',

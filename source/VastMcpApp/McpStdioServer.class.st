@@ -175,7 +175,7 @@ McpStdioServer >> processMessage: aLine [
 			ifFalse: [aLine asString].
 	lineString isEmpty ifTrue: [^self].
 	parsed :=
-		[NeoJSONReader fromString: lineString]
+		[McpJSONReader fromString: lineString]
 			on: Error
 			do: [:e | | errResp |
 				errResp :=

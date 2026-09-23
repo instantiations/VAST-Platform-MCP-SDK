@@ -14,10 +14,10 @@ Class {
 TestMcpSchemaReferences >> testAnchor [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString:
+	schema := McpJSONReader fromString:
 		('{"$defs":{"n":{"$anchor":"number","type":"integer"}},' ,
 		'"properties":{"v":{"$ref":"#number"}}}').
-	value := NeoJSONReader fromString: ('{"v":3}').
+	value := McpJSONReader fromString: ('{"v":3}').
 	McpSchemaValidator new validate: value against: schema
 
 ]
@@ -26,9 +26,9 @@ TestMcpSchemaReferences >> testAnchor [
 TestMcpSchemaReferences >> testEmptyPropertyPointer [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"$defs":{"":{"type":"integer"}},' ,
+	schema := McpJSONReader fromString: ('{"$defs":{"":{"type":"integer"}},' ,
 		'"properties":{"v":{"$ref":"#/$defs/"}}}').
-	value := NeoJSONReader fromString: ('{"v":3}').
+	value := McpJSONReader fromString: ('{"v":3}').
 	McpSchemaValidator new validate: value against: schema
 
 ]
@@ -37,10 +37,10 @@ TestMcpSchemaReferences >> testEmptyPropertyPointer [
 TestMcpSchemaReferences >> testEscapedPointer [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString:
+	schema := McpJSONReader fromString:
 		('{"$defs":{"a/b~c":{"type":"integer"}},"type":"object",' ,
 		'"properties":{"v":{"$ref":"#/$defs/a~1b~0c"}}}').
-	value := NeoJSONReader fromString: ('{"v":3}').
+	value := McpJSONReader fromString: ('{"v":3}').
 	McpSchemaValidator new validate: value against: schema
 
 ]
@@ -49,9 +49,9 @@ TestMcpSchemaReferences >> testEscapedPointer [
 TestMcpSchemaReferences >> testFileReferenceRejected [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString:
+	schema := McpJSONReader fromString:
 		('{"$ref":"file:///private/schema.json"}').
-	value := NeoJSONReader fromString: ('{}').
+	value := McpJSONReader fromString: ('{}').
 	self should: [McpSchemaValidator new validate: value against: schema] raise:
 		Error
 
@@ -61,10 +61,10 @@ TestMcpSchemaReferences >> testFileReferenceRejected [
 TestMcpSchemaReferences >> testLocalPointer [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"type":"object",' ,
+	schema := McpJSONReader fromString: ('{"type":"object",' ,
 		'"properties":{"v":{"$ref":"#/$defs/number"}},' ,
 		'"$defs":{"number":{"type":"integer"}}}').
-	value := NeoJSONReader fromString: ('{"v":3}').
+	value := McpJSONReader fromString: ('{"v":3}').
 	McpSchemaValidator new validate: value against: schema
 
 ]
@@ -73,10 +73,10 @@ TestMcpSchemaReferences >> testLocalPointer [
 TestMcpSchemaReferences >> testLocalPointerRejectsWrongType [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"type":"object",' ,
+	schema := McpJSONReader fromString: ('{"type":"object",' ,
 		'"properties":{"v":{"$ref":"#/$defs/number"}},' ,
 		'"$defs":{"number":{"type":"integer"}}}').
-	value := NeoJSONReader fromString: ('{"v":"bad"}').
+	value := McpJSONReader fromString: ('{"v":"bad"}').
 	self should: [McpSchemaValidator new validate: value against: schema] raise:
 		McpJsonRpcError
 
@@ -86,8 +86,8 @@ TestMcpSchemaReferences >> testLocalPointerRejectsWrongType [
 TestMcpSchemaReferences >> testMissingPointer [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"$ref":"#/$defs/missing"}').
-	value := NeoJSONReader fromString: ('{}').
+	schema := McpJSONReader fromString: ('{"$ref":"#/$defs/missing"}').
+	value := McpJSONReader fromString: ('{}').
 	self should: [McpSchemaValidator new validate: value against: schema] raise:
 		Error
 
@@ -97,8 +97,8 @@ TestMcpSchemaReferences >> testMissingPointer [
 TestMcpSchemaReferences >> testNonProgressingCycleRejected [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"$ref":"#"}').
-	value := NeoJSONReader fromString: ('{}').
+	schema := McpJSONReader fromString: ('{"$ref":"#"}').
+	value := McpJSONReader fromString: ('{}').
 	self should: [McpSchemaValidator new validate: value against: schema] raise:
 		Error
 
@@ -108,10 +108,10 @@ TestMcpSchemaReferences >> testNonProgressingCycleRejected [
 TestMcpSchemaReferences >> testPercentEncodedPointer [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"$defs":{"a b":{"type":"integer"}},'
+	schema := McpJSONReader fromString: ('{"$defs":{"a b":{"type":"integer"}},'
 		,
 		'"properties":{"v":{"$ref":"#/$defs/a%20b"}}}').
-	value := NeoJSONReader fromString: ('{"v":3}').
+	value := McpJSONReader fromString: ('{"v":3}').
 	McpSchemaValidator new validate: value against: schema
 
 ]
@@ -120,9 +120,9 @@ TestMcpSchemaReferences >> testPercentEncodedPointer [
 TestMcpSchemaReferences >> testRecursiveObject [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString:
+	schema := McpJSONReader fromString:
 		('{"type":"object","properties":{"child":{"$ref":"#"}}}').
-	value := NeoJSONReader fromString: ('{"child":{"child":{}}}').
+	value := McpJSONReader fromString: ('{"child":{"child":{}}}').
 	McpSchemaValidator new validate: value against: schema
 
 ]
@@ -131,9 +131,9 @@ TestMcpSchemaReferences >> testRecursiveObject [
 TestMcpSchemaReferences >> testReferenceSiblingsEnforced [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"$ref":"#/$defs/item",' ,
+	schema := McpJSONReader fromString: ('{"$ref":"#/$defs/item",' ,
 		'"$defs":{"item":{"type":"object"}},"required":["v"]}').
-	value := NeoJSONReader fromString: ('{}').
+	value := McpJSONReader fromString: ('{}').
 	self should: [McpSchemaValidator new validate: value against: schema] raise:
 		McpJsonRpcError
 
@@ -143,8 +143,8 @@ TestMcpSchemaReferences >> testReferenceSiblingsEnforced [
 TestMcpSchemaReferences >> testRelativeExternalReferenceRejected [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"$ref":"other.json"}').
-	value := NeoJSONReader fromString: ('{}').
+	schema := McpJSONReader fromString: ('{"$ref":"other.json"}').
+	value := McpJSONReader fromString: ('{}').
 	self should: [McpSchemaValidator new validate: value against: schema] raise:
 		Error
 
@@ -154,9 +154,9 @@ TestMcpSchemaReferences >> testRelativeExternalReferenceRejected [
 TestMcpSchemaReferences >> testRemoteReferenceRejected [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString:
+	schema := McpJSONReader fromString:
 		('{"$ref":"https://example.invalid/schema"}').
-	value := NeoJSONReader fromString: ('{}').
+	value := McpJSONReader fromString: ('{}').
 	self should: [McpSchemaValidator new validate: value against: schema] raise:
 		Error
 
@@ -166,11 +166,11 @@ TestMcpSchemaReferences >> testRemoteReferenceRejected [
 TestMcpSchemaReferences >> testRootIdReference [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString:
+	schema := McpJSONReader fromString:
 		('{"$id":"https://example.invalid/root",' ,
 		'"$defs":{"n":{"type":"integer"}},' ,
 		'"properties":{"v":{"$ref":"https://example.invalid/root#/$defs/n"}}}').
-	value := NeoJSONReader fromString: ('{"v":2}').
+	value := McpJSONReader fromString: ('{"v":2}').
 	McpSchemaValidator new validate: value against: schema
 
 ]
@@ -179,9 +179,9 @@ TestMcpSchemaReferences >> testRootIdReference [
 TestMcpSchemaReferences >> testUnusedExternalReferenceDoesNotFetch [
 	"Exercise document-local reference behavior without any I/O."
 	| schema value |
-	schema := NeoJSONReader fromString: ('{"type":"object",' ,
+	schema := McpJSONReader fromString: ('{"type":"object",' ,
 		'"$defs":{"unused":{"$ref":"https://example.invalid/schema"}}}').
-	value := NeoJSONReader fromString: ('{}').
+	value := McpJSONReader fromString: ('{}').
 	McpSchemaValidator new validate: value against: schema
 
 ]

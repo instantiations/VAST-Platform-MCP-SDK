@@ -208,7 +208,7 @@ TestMcpVastInterop >> decodeStdioInteropLine: bytes [
 	"Decode one physical JSON line recorded by the stream fixture."
 
 	self deny: (bytes includes: Character lf value).
-	^NeoJSONReader fromString: (UnicodeString utf8: bytes) asString
+	^McpJSONReader fromString: (UnicodeString utf8: bytes) asString
 ]
 
 { #category : 'Private',
@@ -675,7 +675,7 @@ TestMcpVastInterop >> testVastJsonPreservesCrlfWithAsciiEscapes [
 	text := self interopUnicodeText.
 	json := String streamContents: [:stream |
 		(McpJSONWriter on: stream) asciiOnly: true; nextPut: text].
-	decoded := NeoJSONReader fromString: json.
+	decoded := McpJSONReader fromString: json asSBString.
 	self assert: decoded asUtf8Bytes equals: text asUtf8Bytes
 ]
 
@@ -692,7 +692,7 @@ TestMcpVastInterop >> testVastJsonPreservesCrlfWithUnicodeOutput [
 	text := self interopUnicodeText.
 	json := String streamContents: [:stream |
 		(McpJSONWriter on: stream) asciiOnly: false; nextPut: text].
-	decoded := NeoJSONReader fromString: json.
+	decoded := McpJSONReader fromString: json.
 	self assert: decoded asUtf8Bytes equals: text asUtf8Bytes
 ]
 

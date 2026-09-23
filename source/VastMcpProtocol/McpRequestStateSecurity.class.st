@@ -249,7 +249,7 @@ McpRequestStateSecurity >> unsealState: aTokenString
 				message: 'Invalid or expired requestState'
 				data: nil].
 	claims :=
-		[NeoJSONReader fromString: payloadJson]
+		[McpJSONReader fromString: payloadJson]
 			on: Error
 			do: [:e |
 				McpJsonRpcError

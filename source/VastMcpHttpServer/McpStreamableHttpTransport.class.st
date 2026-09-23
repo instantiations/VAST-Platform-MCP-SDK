@@ -909,7 +909,7 @@ McpStreamableHttpTransport >> parseRequestBody: aRequest [
 				contentLength: 0.
 			^''].
 	bodyString := (UnicodeString utf8: bodyBytes) asString.
-	[parsedRequest := NeoJSONReader fromString: bodyString]
+	[parsedRequest := McpJSONReader fromString: bodyString]
 		on: NeoJSONParseError
 		do: [:parseError | ^self formatParseErrorFor: aRequest].
 	^parsedRequest

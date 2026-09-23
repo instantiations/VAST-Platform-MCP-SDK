@@ -112,7 +112,7 @@ TestMcpHttpClientTransport >> jsonErrorResponseId: identifier code: code message
 TestMcpHttpClientTransport >> jsonFromBytes: bytes [
 	"Decode one UTF-8 JSON fixture."
 
-	^NeoJSONReader fromString: (UnicodeString utf8: bytes asByteArray)
+	^McpJSONReader fromString: (UnicodeString utf8: bytes asByteArray)
 ]
 
 { #category : 'Test Support',

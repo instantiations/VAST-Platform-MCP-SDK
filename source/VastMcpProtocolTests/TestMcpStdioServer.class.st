@@ -63,7 +63,7 @@ TestMcpStdioServer >> testStdioServerProcessesToolCall [
 
 	responseLine := outStream contents.
 	self assert: responseLine last equals: Character lf.
-	parsedResponse := NeoJSONReader fromString: responseLine trimBlanks.
+	parsedResponse := McpJSONReader fromString: responseLine trimBlanks.
 	self assert: (parsedResponse at: 'id') equals: 1.
 	self assert: (parsedResponse at: 'jsonrpc') equals: '2.0'.
 	self assert: (((parsedResponse at: 'result') at: 'content') first at: 'text') equals: '30'
@@ -77,7 +77,7 @@ TestMcpStdioServer >> testStdioServerRejectsMalformedJson [
 
 	stdioServer processMessage: 'not valid json'.
 
-	parsedResponse := NeoJSONReader fromString: outStream contents trimBlanks.
+	parsedResponse := McpJSONReader fromString: outStream contents trimBlanks.
 	self assert: (parsedResponse at: 'jsonrpc') equals: '2.0'.
 	self assert: ((parsedResponse at: 'error') at: 'code') equals: McpJsonRpcParseErrorCode
 ]

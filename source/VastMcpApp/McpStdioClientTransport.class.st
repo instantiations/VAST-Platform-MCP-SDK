@@ -292,7 +292,7 @@ McpStdioClientTransport >> handleStdoutLine: aByteArray [
 			ifTrue: [(UnicodeString utf8: aByteArray repair: true) asString trimBlanks]
 			ifFalse: [aByteArray asString trimBlanks].
 	lineString isEmpty ifTrue: [^self].
-	[json := NeoJSONReader fromString: lineString] on: Error do: [:parseError | ^self].
+	[json := McpJSONReader fromString: lineString] on: Error do: [:parseError | ^self].
 	self handleIncomingJson: json.
 	^self
 ]

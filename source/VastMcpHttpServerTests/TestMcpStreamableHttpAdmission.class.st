@@ -200,7 +200,7 @@ TestMcpStreamableHttpAdmission >> responseExchangeFor: message session: session 
 
 	request := self requestForMessage: message session: session.
 	body := transport handlePostRequest: request.
-	response := NeoJSONReader fromString: body.
+	response := McpJSONReader fromString: body.
 	^EsOrderedDictionary new
 		at: 'request' put: request;
 		at: 'body' put: body;
@@ -459,7 +459,7 @@ TestMcpStreamableHttpAdmission >> testHttpNonObjectJsonMessageReturnsInvalidRequ
 		headerAt: 'MCP-Session-Id' put: session id;
 		headerAt: 'MCP-Protocol-Version' put: session protocolVersion.
 	body := transport handlePostRequest: request.
-	response := NeoJSONReader fromString: body.
+	response := McpJSONReader fromString: body.
 	error := response at: 'error'.
 	constants := Smalltalk at: #McpJsonRpcConstants.
 	self assert: request header responseHeader status equals: '200 OK'.
@@ -661,7 +661,7 @@ TestMcpStreamableHttpAdmission >> testInitializationErrorDoesNotCreateSession [
 	(message at: 'params') removeKey: 'clientInfo'.
 	request := self requestForMessage: message.
 	body := transport handlePostRequest: request.
-	response := NeoJSONReader fromString: body.
+	response := McpJSONReader fromString: body.
 	error := response at: 'error'.
 	constants := Smalltalk at: #McpJsonRpcConstants.
 	self assert: request header responseHeader status equals: '200 OK'.
@@ -776,7 +776,7 @@ TestMcpStreamableHttpAdmission >> testMalformedJsonReturnsCanonicalParseError [
 
 	request := self validRequestWithBody: '{broken'.
 	body := transport handlePostRequest: request.
-	parsed := NeoJSONReader fromString: body.
+	parsed := McpJSONReader fromString: body.
 	error := parsed at: 'error'.
 	constants := Smalltalk at: #McpJsonRpcConstants.
 	self assert: (parsed at: 'jsonrpc') equals: '2.0'.
@@ -835,7 +835,7 @@ TestMcpStreamableHttpAdmission >> testModernMismatchedMethodHeaderReturnsHeaderM
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '400 Bad Request'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: ((body at: 'error') at: 'code') equals: -32020
 ]
 
@@ -874,7 +874,7 @@ TestMcpStreamableHttpAdmission >> testModernPostAcceptsJsonWithoutEventStream [
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 102
 ]
 
@@ -907,7 +907,7 @@ TestMcpStreamableHttpAdmission >> testModernSessionlessPostDoesNotRequireSession
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 101.
 	self assert: ((body at: 'result') at: 'resultType') equals: 'complete'
 ]
@@ -950,7 +950,7 @@ TestMcpStreamableHttpAdmission >> testModernToolCallRejectsMismatchedMcpParamHea
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '400 Bad Request'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: ((body at: 'error') at: 'code') equals: -32020
 ]
 
@@ -992,7 +992,7 @@ TestMcpStreamableHttpAdmission >> testModernToolCallValidatesMatchingMcpParamHea
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 106.
 	self
 		assert: (((body at: 'result') at: 'content') first at: 'text')
@@ -1040,7 +1040,7 @@ TestMcpStreamableHttpAdmission >> testNumericMcpParamHeaderComparison [
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 303
 ]
 
@@ -1085,7 +1085,7 @@ TestMcpStreamableHttpAdmission >> testPingIsAllowedWhileSessionIsInitializing [
 	session := exchange at: 'session'.
 	request := self requestForMessage: (self jsonRpcMessageMethod: 'ping' id: 88) session: session.
 	body := transport handlePostRequest: request.
-	response := NeoJSONReader fromString: body.
+	response := McpJSONReader fromString: body.
 	self assert: request header responseHeader status equals: '200 OK'.
 	self assert: (response at: 'id') equals: 88.
 	self assert: (response at: 'result') isEmpty.
@@ -1141,7 +1141,7 @@ TestMcpStreamableHttpAdmission >> testPreReadyRequestReturnsServerNotInitialized
 	message := self jsonRpcMessageMethod: 'tools/list' id: 91.
 	request := self requestForMessage: message session: session.
 	body := transport handlePostRequest: request.
-	response := NeoJSONReader fromString: body.
+	response := McpJSONReader fromString: body.
 	error := response at: 'error'.
 	constants := Smalltalk at: #McpJsonRpcConstants.
 	self assert: request header responseHeader status equals: '200 OK'.
@@ -1179,7 +1179,7 @@ TestMcpStreamableHttpAdmission >> testReadySessionDispatchesRequests [
 		requestForMessage: (self jsonRpcMessageMethod: 'ping' id: 95)
 		session: session.
 	body := transport handlePostRequest: pingRequest.
-	response := NeoJSONReader fromString: body.
+	response := McpJSONReader fromString: body.
 	self assert: session isReady.
 	self assert: pingRequest header responseHeader status equals: '200 OK'.
 	self assert: (response at: 'id') equals: 95.
@@ -1259,7 +1259,7 @@ TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpNameHeaderMatches [
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 301
 ]
 
@@ -1306,7 +1306,7 @@ TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpParamHeaderMatches [
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 302
 ]
 
@@ -1355,7 +1355,7 @@ TestMcpStreamableHttpAdmission >> testSubscriptionsListenAcknowledgesWithSseAcce
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
-	body := (NeoJSONReader on: response readStream) next.
+	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 109.
 	self assert: (((body at: 'result') at: 'notifications') at: 'tools') equals: true.
 	self assert: (((body at: 'result') at: 'notifications') at: 'prompts') equals: true
@@ -1387,7 +1387,7 @@ TestMcpStreamableHttpAdmission >> testSuccessfulInitializationCreatesNegotiatedS
 	exchange := self performInitializationId: 98.
 	request := exchange at: 'request'.
 	body := exchange at: 'body'.
-	response := NeoJSONReader fromString: body.
+	response := McpJSONReader fromString: body.
 	result := response at: 'result'.
 	session := exchange at: 'session'.
 	sessionId := exchange at: 'sessionId'.

@@ -192,7 +192,7 @@ McpLegacySseClientTransport >> doPostMessage: jsonString headers: requestHeaders
 		(response header statusCode = 200 and: [response contents notEmpty])
 			ifTrue: [
 				parsedResp :=
-					[NeoJSONReader fromString:
+					[McpJSONReader fromString:
 						(UnicodeString utf8: response contents asByteArray)]
 						on: Exception
 						do: [:e | e exitWith: nil].
@@ -358,7 +358,7 @@ McpLegacySseClientTransport >> handleSseEvent: anEvent [
 			^self].
 	(eventType = 'message' and: [eventData isEmpty not])
 		ifTrue: [
-			parsedJson := [NeoJSONReader fromString: eventData] on: Error do: [:e | nil].
+			parsedJson := [McpJSONReader fromString: eventData] on: Error do: [:e | nil].
 			parsedJson ifNotNil: [self handleIncomingJson: parsedJson].
 			^self].
 	^self
