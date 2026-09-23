@@ -265,7 +265,7 @@ McpHttpClientTransport >> doSendListenRequest: requestDictionary id: requestId h
 	| jsonString headers exchangeClient response stream ackSemaphore ackResult
 	  receiveBuffer parser isDone |
 
-	jsonString := String streamContents: [:s | (NeoJSONWriter on: s) nextPut:
+	jsonString := String streamContents: [:s | (McpJSONWriter on: s) nextPut:
 		requestDictionary].
 	headers := self headersIncluding: requestHeaders.
 	(self client notNil and: [McpProtocolVersion isModern: self client
@@ -392,7 +392,7 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 	isInitialize := (requestDictionary at: 'method' ifAbsent: [nil]) =
 		'initialize'.
 	jsonString :=
-		String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut:
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut:
 			requestDictionary].
 	allowRetry := true.
 	done := false.
@@ -729,7 +729,7 @@ McpHttpClientTransport >> sendNotification: notification headers: requestHeaders
 		ifFalse: [self error: 'MCP notification must be a keyed collection'].
 	url ifNil: [self error: 'MCP HTTP endpoint is not configured'].
 	headers := self headersIncluding: (self validatedRequestHeadersFrom: requestHeaders).
-	jsonString := String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: notification].
+	jsonString := String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: notification].
 	responseOrError :=
 		self withHttpClientDo: [:exchangeClient |
 			exchangeClient

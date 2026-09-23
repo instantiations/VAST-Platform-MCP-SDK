@@ -243,7 +243,7 @@ McpStdioServer >> sendResponse: aDictionary [
 
 	| jsonString |
 
-	jsonString := String streamContents: [:s | (NeoJSONWriter on: s) nextPut: aDictionary].
+	jsonString := String streamContents: [:s | (McpJSONWriter on: s) nextPut: aDictionary].
 	self outputStream
 		nextPutAll: jsonString;
 		nextPutAll: (String with: Character lf);

@@ -670,11 +670,11 @@ TestMcpVastInterop >> testVastJsonPreservesCrlfWithAsciiEscapes [
 
 	crlf := UnicodeString utf8: #[13 10].
 	json := String streamContents: [:stream |
-		(NeoJSONWriter on: stream) asciiOnly: true; nextPut: crlf].
+		(McpJSONWriter on: stream) asciiOnly: true; nextPut: crlf].
 	self assert: json asUtf8Bytes equals: #[34 92 114 92 110 34].
 	text := self interopUnicodeText.
 	json := String streamContents: [:stream |
-		(NeoJSONWriter on: stream) asciiOnly: true; nextPut: text].
+		(McpJSONWriter on: stream) asciiOnly: true; nextPut: text].
 	decoded := NeoJSONReader fromString: json.
 	self assert: decoded asUtf8Bytes equals: text asUtf8Bytes
 ]
@@ -687,11 +687,11 @@ TestMcpVastInterop >> testVastJsonPreservesCrlfWithUnicodeOutput [
 
 	crlf := UnicodeString utf8: #[13 10].
 	json := String streamContents: [:stream |
-		(NeoJSONWriter on: stream) asciiOnly: false; nextPut: crlf].
+		(McpJSONWriter on: stream) asciiOnly: false; nextPut: crlf].
 	self assert: json asUtf8Bytes equals: #[34 92 114 92 110 34].
 	text := self interopUnicodeText.
 	json := String streamContents: [:stream |
-		(NeoJSONWriter on: stream) asciiOnly: false; nextPut: text].
+		(McpJSONWriter on: stream) asciiOnly: false; nextPut: text].
 	decoded := NeoJSONReader fromString: json.
 	self assert: decoded asUtf8Bytes equals: text asUtf8Bytes
 ]
@@ -795,7 +795,7 @@ TestMcpVastInterop >> testVastLegacySseDecodesRawByteStringsAtEverySplit [
 	| text json frame received client transport |
 
 	text := self interopUnicodeText.
-	json := NeoJSONWriter toString: (EsOrderedDictionary new
+	json := McpJSONWriter toString: (EsOrderedDictionary new
 		at: 'jsonrpc' put: '2.0';
 		at: 'method' put: 'notifications/interop';
 		at: 'params' put: (EsOrderedDictionary with: 'text' -> text);

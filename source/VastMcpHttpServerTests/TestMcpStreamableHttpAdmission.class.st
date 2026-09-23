@@ -109,7 +109,7 @@ TestMcpStreamableHttpAdmission >> jsonRpcMessageMethod: methodName id: identifie
 TestMcpStreamableHttpAdmission >> jsonStringFor: object [
 	"Encode one JSON-compatible fixture."
 
-	^String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: object]
+	^String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: object]
 ]
 
 { #category : 'Test Support',
@@ -150,7 +150,7 @@ TestMcpStreamableHttpAdmission >> pingJsonId: identifier [
 			at: 'id' put: identifier;
 			at: 'method' put: 'ping';
 			yourself.
-	^String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: request]
+	^String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: request]
 ]
 
 { #category : 'Test Support',

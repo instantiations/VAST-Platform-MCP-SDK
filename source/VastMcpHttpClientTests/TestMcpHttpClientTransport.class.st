@@ -183,7 +183,7 @@ TestMcpHttpClientTransport >> responseStatus: statusCode contentType: contentTyp
 
 	| json |
 
-	json := String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: object].
+	json := String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: object].
 	^self responseStatus: statusCode contentType: contentType contents: json asUtf8Bytes
 ]
 

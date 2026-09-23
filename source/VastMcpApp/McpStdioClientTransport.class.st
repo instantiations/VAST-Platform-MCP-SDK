@@ -495,7 +495,7 @@ McpStdioClientTransport >> sendNotification: notificationDictionary [
 	(notificationDictionary isKindOf: KeyedCollection)
 		ifFalse: [self error: 'MCP notification must be a keyed collection'].
 	jsonString :=
-		String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: notificationDictionary].
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: notificationDictionary].
 	self sendLine: jsonString.
 	^self
 ]
@@ -532,7 +532,7 @@ McpStdioClientTransport >> sendRequest: requestDictionary id: requestId [
 	(requestId isString or: [requestId isInteger])
 		ifFalse: [self error: 'MCP request identifier is invalid'].
 	jsonString :=
-		String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: requestDictionary].
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: requestDictionary].
 	semaphore := Semaphore new.
 	entry := Dictionary new.
 	entry

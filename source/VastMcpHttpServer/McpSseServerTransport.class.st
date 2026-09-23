@@ -696,7 +696,7 @@ McpSseServerTransport >> streamSseSession: session on: connection initialPayload
 				messagesToSend do: [:msg |
 					frame :=
 						'event: message' , lf , 'data: ' ,
-							(String streamContents: [:s | (NeoJSONWriter on: s) nextPut: msg]) , lf ,
+							(String streamContents: [:s | (McpJSONWriter on: s) nextPut: msg]) , lf ,
 							lf.
 					stream nextPutAll: frame asUtf8Bytes asString].
 				messagesToSend isEmpty ifFalse: [stream flush].

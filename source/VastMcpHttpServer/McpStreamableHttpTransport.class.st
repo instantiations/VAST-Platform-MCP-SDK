@@ -193,7 +193,7 @@ McpStreamableHttpTransport >> capacityResponseFor: request [
 	payload := self dispatcher formatError: McpJsonRpcInternalErrorCode
 		message: 'Too many open sessions' id: nil data: nil.
 	json := String streamContents: [:out |
-		(NeoJSONWriter on: out) nextPut: payload].
+		(McpJSONWriter on: out) nextPut: payload].
 	request header responseHeader status: '503 Service Unavailable';
 		contentType: 'application/json'; contentLength: json asUtf8Bytes size.
 	^json
@@ -397,7 +397,7 @@ McpStreamableHttpTransport >> formatHeaderMismatchErrorFor: aRequest message: pa
 			id: id
 			data: nil.
 	jsonResponse :=
-		String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: errorResponse].
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: errorResponse].
 	aRequest header responseHeader
 		status: '400 Bad Request';
 		contentType: 'application/json';
@@ -424,7 +424,7 @@ McpStreamableHttpTransport >> formatParseErrorFor: aRequest [
 	response at: 'jsonrpc' put: '2.0'.
 	response at: 'id' put: nil.
 	response at: 'error' put: err.
-	json := String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: response].
+	json := String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: response].
 	aRequest header responseHeader
 		status: '400 Bad Request';
 		contentType: 'application/json';
@@ -446,7 +446,7 @@ McpStreamableHttpTransport >> formatSuccessResponseFor: aRequest payload: dispat
 	| jsonResponse |
 
 	jsonResponse :=
-		String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: dispatcherResponse].
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: dispatcherResponse].
 	aRequest header responseHeader
 		status: '200 OK';
 		contentType: 'application/json';
@@ -1168,7 +1168,7 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
 						at: 'id' put: requestId;
 						at: 'result' put: ackResult;
 						yourself.
-				(NeoJSONWriter on: s) nextPut: responseObj]) , lf , lf.
+				(McpJSONWriter on: s) nextPut: responseObj]) , lf , lf.
 
 	[
 		streamMutex critical: [
@@ -1189,7 +1189,7 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
 				notifFrame :=
 					'event: message' , lf , 'data: ' , (
 						String streamContents: [:s |
-							(NeoJSONWriter on: s) nextPut: (
+							(McpJSONWriter on: s) nextPut: (
 								EsOrderedDictionary new
 									at: 'jsonrpc' put: '2.0';
 									at: 'method' put: notifMethod;

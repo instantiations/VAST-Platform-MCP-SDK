@@ -698,7 +698,7 @@ McpServer >> normalizeToolResult: executionResult [
 			jsonText :=
 				[
 					String streamContents: [:stream |
-						(NeoJSONWriter on: stream) nextPut: executionResult]]
+						(McpJSONWriter on: stream) nextPut: executionResult]]
 							on: Error
 							do: [:serializationError |
 								contentBlock
@@ -737,7 +737,7 @@ McpServer >> normalizeToolResult: executionResult for: aTool [
 		(executionResult isKindOf: KeyedCollection)
 			and: [(executionResult includesKey: 'content') not]])
 				ifFalse: [^self normalizeToolResult: executionResult].
-	text := String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: executionResult].
+	text := String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: executionResult].
 	content :=
 		EsOrderedDictionary new
 			at: 'type' put: 'text';

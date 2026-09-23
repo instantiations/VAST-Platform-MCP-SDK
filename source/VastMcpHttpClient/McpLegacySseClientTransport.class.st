@@ -628,7 +628,7 @@ McpLegacySseClientTransport >> sendNotification: notificationDictionary headers:
 		ifFalse: [self error: 'MCP notification must be a keyed collection'].
 	self ensureConnected.
 	jsonString :=
-		String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: notificationDictionary].
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: notificationDictionary].
 	self doPostMessage: jsonString headers: requestHeaders.
 	^self
 ]
@@ -665,7 +665,7 @@ McpLegacySseClientTransport >> sendRequest: requestDictionary id: requestId head
 		ifFalse: [self error: 'MCP request identifier is invalid'].
 	self ensureConnected.
 	jsonString :=
-		String streamContents: [:stream | (NeoJSONWriter on: stream) nextPut: requestDictionary].
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: requestDictionary].
 	semaphore := Semaphore new.
 	entry := Dictionary new.
 	entry
