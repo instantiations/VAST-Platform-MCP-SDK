@@ -141,6 +141,67 @@ TestMcpVastInterop >> assertCapabilityInteropUnicodeAndCorrelation: client [
             equals: (text , index printString) asUtf8Bytes]
 ]
 
+{ #category : 'Not categorized',
+  #vaVisibility : 'private' }
+TestMcpVastInterop >> assertStdioExchangeFor: client methods: expectedMethods [
+	"Check a complete exchange containing only valid outgoing JSON.
+	Arguments:
+		client - <McpClient> connected stdio fixture client.
+		expectedMethods - <Array> exact outgoing method sequence.
+	Answers:
+		<TestMcpVastInterop> the receiver.
+	Raises:
+		<TestFailure> for unexpected traffic or correlation errors."
+
+	| requests responses |
+
+	requests := client transport requestLines collect: [:line |
+		self decodeStdioInteropLine: line].
+	responses := client transport responseLines collect: [:line |
+		self decodeStdioInteropLine: line].
+	self assert: (requests collect: [:message |
+		message at: 'method']) asArray equals: expectedMethods.
+	self assertStdioResponses: responses forRequests: requests
+
+]
+
+{ #category : 'Not categorized',
+  #vaVisibility : 'private' }
+TestMcpVastInterop >> assertStdioResponses: responses forRequests: requests [
+	"Require one uniquely correlated response per request with an ID.
+	Notifications have no response. Response order is not assumed.
+	Arguments:
+		responses - <SequenceableCollection> decoded response objects.
+		requests - <SequenceableCollection> decoded outgoing objects.
+	Answers:
+		<TestMcpVastInterop> the receiver.
+	Raises:
+		<TestFailure> for missing, duplicate or uncorrelated replies."
+
+	| identifiers responseIdentifiers |
+
+	identifiers := Set new.
+	requests do: [:request | | identifier |
+		self assert: (request at: 'jsonrpc') equals: '2.0'.
+		(request includesKey: 'id') ifTrue: [
+			identifier := request at: 'id'.
+			self assert: identifier notNil.
+			self deny: (identifiers includes: identifier).
+			identifiers add: identifier]].
+	self assert: responses size equals: identifiers size.
+	responseIdentifiers := Set new.
+	responses do: [:response | | identifier |
+		self assert: (response at: 'jsonrpc') equals: '2.0'.
+		self deny: (response includesKey: 'method').
+		self deny: (response includesKey: 'result') =
+			(response includesKey: 'error').
+		identifier := response at: 'id'.
+		self assert: (identifiers includes: identifier).
+		self deny: (responseIdentifiers includes: identifier).
+		responseIdentifiers add: identifier]
+
+]
+
 { #category : 'Test Support',
   #vaVisibility : 'private' }
 TestMcpVastInterop >> decodeStdioInteropLine: bytes [
@@ -577,19 +638,28 @@ TestMcpVastInterop >> testVastHttpServletPreservesStreamingWriter [
 
 { #category : 'Testing' }
 TestMcpVastInterop >> testVastHttpServletWritesUtf8ResponseBytes [
-    "The actual servlet boundary must preserve bytes and Content-Length."
+	"Preserve UTF-8 bytes and Content-Length through the servlet writer.
+	Supply the transport required by response delivery accounting."
 
-    | request writer connection stream text |
+	| request writer connection stream text servlet transport |
 
-    request := McpHttpServerTestRequest new.
-    text := self interopUnicodeText.
-    writer := McpHttpServlet new responseEntity: text for: request.
-    stream := WriteStream on: ByteArray new.
-    connection := SstHttpConnection new stream: stream; yourself.
-    writer value: connection.
-    self assert: stream contents equals: text asUtf8Bytes.
-    self assert: request header responseHeader contentLength
-        equals: text asUtf8Bytes size
+	request := McpHttpServerTestRequest new.
+	text := self interopUnicodeText.
+	transport := McpStreamableHttpTransport new.
+	[
+		servlet := TestMcpDeliveryServlet new
+			transport: transport;
+			yourself.
+		writer := servlet responseEntity: text for: request.
+		self assert: writer isBlock.
+		stream := WriteStream on: ByteArray new.
+		connection := SstHttpConnection new stream: stream; yourself.
+		writer value: connection.
+		self assert: stream contents equals: text asUtf8Bytes.
+		self assert: request header responseHeader contentLength
+			equals: text asUtf8Bytes size
+	] ensure: [transport close]
+
 ]
 
 { #category : 'Testing' }
@@ -628,21 +698,22 @@ TestMcpVastInterop >> testVastJsonPreservesCrlfWithUnicodeOutput [
 
 { #category : 'Testing' }
 TestMcpVastInterop >> testVastLegacyClientConnectsToVastStdioServer [
-	"Exercise initialize and its notification before a tool exchange."
+	"Correlate the handshake, tool call and output-schema discovery.
+	The initialized notification must not receive a response."
 
-	| client requests first second |
+	| client notification |
 
 	client := self newStdioInteropClientInMode: #legacy.
 	self assert: client isConnected.
 	self deny: (McpProtocolVersion isModern: client protocolVersion).
-	self assert: (self stdioInteropEcho: 'legacy' using: client) equals: 'legacy'.
-	requests := client transport requestLines.
-	first := self decodeStdioInteropLine: requests first.
-	second := self decodeStdioInteropLine: (requests at: 2).
-	self assert: (first at: 'method') equals: 'initialize'.
-	self assert: (second at: 'method') equals: 'notifications/initialized'.
-	self deny: (second includesKey: 'id').
-	self assert: client transport responseLines size equals: 2
+	self assert: (self stdioInteropEcho: 'legacy' using: client)
+		equals: 'legacy'.
+	notification := self decodeStdioInteropLine:
+		(client transport requestLines at: 2).
+	self deny: (notification includesKey: 'id').
+	self assertStdioExchangeFor: client methods:
+		#('initialize' 'notifications/initialized' 'tools/call' 'tools/list')
+
 ]
 
 { #category : 'Testing' }
@@ -1095,26 +1166,21 @@ TestMcpVastInterop >> testVastStdioClientCloseStopsFixtureServer [
 
 { #category : 'Testing' }
 TestMcpVastInterop >> testVastStdioCorrelatesRepeatedToolCalls [
-	"Distinct calls on one connection produce unique correlated replies."
+	"Correlate distinct replies and reuse discovery on the same client.
+	A listed tool without an output schema still has a cached entry."
 
-	| client requests responses ids |
+	| client expectedMethods |
 
 	client := self newStdioInteropClientInMode: #modern.
+	expectedMethods := OrderedCollection with: 'server/discover'.
 	1 to: 12 do: [:index | | value |
 		value := 'message-' , index printString.
-		self assert: (self stdioInteropEcho: value using: client) equals: value].
-	requests := client transport requestLines.
-	responses := client transport responseLines.
-	self assert: requests size equals: 13.
-	self assert: responses size equals: requests size.
-	ids := Set new.
-	1 to: requests size do: [:index | | request response identifier |
-		request := self decodeStdioInteropLine: (requests at: index).
-		response := self decodeStdioInteropLine: (responses at: index).
-		identifier := request at: 'id'.
-		self deny: (ids includes: identifier).
-		ids add: identifier.
-		self assert: (response at: 'id') equals: identifier]
+		self assert: (self stdioInteropEcho: value using: client)
+			equals: value.
+		expectedMethods add: 'tools/call'.
+		index = 1 ifTrue: [expectedMethods add: 'tools/list']].
+	self assertStdioExchangeFor: client methods: expectedMethods asArray
+
 ]
 
 { #category : 'Testing' }
@@ -1134,77 +1200,116 @@ TestMcpVastInterop >> testVastStdioFixtureAcceptsCharacterAndByteDelimiters [
 
 { #category : 'Testing' }
 TestMcpVastInterop >> testVastStdioMalformedLineDoesNotPoisonNextRequest [
-	"A parse-error response with null ID cannot consume the next reply."
+	"A null-ID parse error must not consume a later correlated reply.
+	Include discovery after the successful recovery call."
 
-	| client response constants |
+	| client requestLines responseLines requestMessages responseMessages
+	  parseError constants |
 
 	client := self newStdioInteropClientInMode: #modern.
 	client transport sendLine: '{invalid'.
-	self assert: (self stdioInteropEcho: 'after-malformed' using: client) equals: 'after-malformed'.
-	self assert: client transport responseLines size equals: 3.
-	response := self decodeStdioInteropLine: (client transport responseLines at: 2).
+	self assert: (self stdioInteropEcho: 'after-malformed' using: client)
+		equals: 'after-malformed'.
+	requestLines := client transport requestLines.
+	responseLines := client transport responseLines.
+	self assert: requestLines size equals: 4.
+	self assert: responseLines size equals: 4.
+	self assert: (requestLines at: 2) asString equals: '{invalid'.
+	parseError := self decodeStdioInteropLine: (responseLines at: 2).
 	constants := Smalltalk at: #McpJsonRpcConstants.
-	self assert: (response at: 'id') equals: nil.
-	self
-		assert: ((response at: 'error') at: 'code')
-		equals: (constants at: 'McpJsonRpcParseErrorCode')
+	self assert: (parseError at: 'jsonrpc') equals: '2.0'.
+	self assert: (parseError at: 'id') isNil.
+	self deny: (parseError includesKey: 'result').
+	self assert: ((parseError at: 'error') at: 'code')
+		equals: (constants at: 'McpJsonRpcParseErrorCode').
+	requestMessages := #(1 3 4) collect: [:index |
+		self decodeStdioInteropLine: (requestLines at: index)].
+	responseMessages := #(1 3 4) collect: [:index |
+		self decodeStdioInteropLine: (responseLines at: index)].
+	self assert: (requestMessages collect: [:message |
+		message at: 'method'])
+		equals: #('server/discover' 'tools/call' 'tools/list').
+	self assertStdioResponses: responseMessages
+		forRequests: requestMessages
+
 ]
 
 { #category : 'Testing' }
 TestMcpVastInterop >> testVastStdioNotificationDoesNotProduceResponse [
-	"A following call is a processing barrier for a preceding notification."
+	"Use a completed call as a barrier after the notification.
+	Correlate both the call and its discovery without a notification reply."
 
-	| client requestCount responseCount |
+	| client notification |
 
 	client := self newStdioInteropClientInMode: #modern.
-	requestCount := client transport requestLines size.
-	responseCount := client transport responseLines size.
-	client sendNotification: 'notifications/initialized' params: EsOrderedDictionary new.
-	self
-		assert: (self stdioInteropEcho: 'after-notification' using: client)
+	client sendNotification: 'notifications/initialized'
+		params: EsOrderedDictionary new.
+	self assert:
+		(self stdioInteropEcho: 'after-notification' using: client)
 		equals: 'after-notification'.
-	self assert: client transport requestLines size equals: requestCount + 2.
-	self assert: client transport responseLines size equals: responseCount + 1
+	notification := self decodeStdioInteropLine:
+		(client transport requestLines at: 2).
+	self deny: (notification includesKey: 'id').
+	self assertStdioExchangeFor: client methods:
+		#('server/discover' 'notifications/initialized'
+		  'tools/call' 'tools/list')
+
 ]
 
 { #category : 'Testing' }
 TestMcpVastInterop >> testVastStdioProtocolErrorPreservesConnection [
-	"An unknown method returns the exact RPC error; later calls succeed."
+	"Preserve the exact protocol error and correlate later success.
+	A recovery call also discovers the previously unknown tool schema."
 
 	| client errorCode constants |
 
 	client := self newStdioInteropClientInMode: #modern.
 	errorCode := nil.
-	[client sendRequest: 'interop/methodDoesNotExist' params: EsOrderedDictionary new]
+	[client sendRequest: 'interop/methodDoesNotExist'
+		params: EsOrderedDictionary new]
 		on: McpJsonRpcError
 		do: [:error | errorCode := error code].
 	constants := Smalltalk at: #McpJsonRpcConstants.
-	self assert: errorCode equals: (constants at: 'McpJsonRpcMethodNotFoundCode').
-	self assert: (self stdioInteropEcho: 'after-error' using: client) equals: 'after-error'.
-	self assert: client transport responseLines size equals: 3
+	self assert: errorCode
+		equals: (constants at: 'McpJsonRpcMethodNotFoundCode').
+	self assert: (self stdioInteropEcho: 'after-error' using: client)
+		equals: 'after-error'.
+	self assertStdioExchangeFor: client methods:
+		#('server/discover' 'interop/methodDoesNotExist'
+		  'tools/call' 'tools/list')
+
 ]
 
 { #category : 'Testing' }
 TestMcpVastInterop >> testVastStdioRoundTripsUnicodeAndEscapedText [
-	"Unicode, quotes, backslashes and newlines survive a single JSON line."
+	"Preserve Unicode and escaped controls in the correlated tool exchange.
+	Discovery follows the call, so the last request is not the tool call."
 
-	| client text request response |
+	| client text requests responses request response identifier |
 
 	client := self newStdioInteropClientInMode: #modern.
-	text :=
-		(UnicodeString utf8:
-			#(99 97 102 195 169 32 230 151 165 230 156 172 32 240 159 152 128 32 34 92 9 13 10)
-				asByteArray)
-					asString.
-	self assert: (self stdioInteropEcho: text using: client) asUtf8Bytes equals: text asUtf8Bytes.
-	self assert: client transport requestLines size equals: 2.
-	self assert: client transport responseLines size equals: 2.
-	request := self decodeStdioInteropLine: client transport requestLines last.
-	response := self decodeStdioInteropLine: client transport responseLines last.
-	self
-		assert: (((request at: 'params') at: 'arguments') at: 'text') asUtf8Bytes
+	text := self interopUnicodeText.
+	self assert: (self stdioInteropEcho: text using: client) asUtf8Bytes
 		equals: text asUtf8Bytes.
-	self assert: (response at: 'id') equals: (request at: 'id')
+	self assertStdioExchangeFor: client methods:
+		#('server/discover' 'tools/call' 'tools/list').
+	requests := client transport requestLines collect: [:line |
+		self decodeStdioInteropLine: line].
+	responses := client transport responseLines collect: [:line |
+		self decodeStdioInteropLine: line].
+	request := requests detect: [:message |
+		(message at: 'method') = 'tools/call'].
+	identifier := request at: 'id'.
+	response := responses detect: [:message |
+		(message at: 'id') = identifier].
+	self assert:
+		(((request at: 'params') at: 'arguments') at: 'text') asUtf8Bytes
+		equals: text asUtf8Bytes.
+	self assert:
+		((((response at: 'result') at: 'content') first) at: 'text')
+			asUtf8Bytes
+		equals: text asUtf8Bytes
+
 ]
 
 { #category : 'Testing' }
