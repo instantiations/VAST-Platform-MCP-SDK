@@ -48,7 +48,7 @@ TestMcpStdioClientTransport >> testAdkMcpServerStdioIntegration [
 	| adkServer tools tool result |
 
 	adkServer :=
-		AdkMcpServer
+		(Smalltalk at: #AdkMcpServer)
 			named: 'py-stdio'
 			command: 'python'
 			arguments: #('test_stdio_server.py')
