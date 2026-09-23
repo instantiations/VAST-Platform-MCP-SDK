@@ -207,14 +207,22 @@ TestMcpStdioClientTransport >> testHeadersAreRejected [
 TestMcpStdioClientTransport >> testStdioPythonServerIntegration [
 	"Live end-to-end: VAST McpClient connects to a python stdio MCP server."
 
-	| stdioTransport mcpClient tools toolNames result |
+	| scriptLines stdioTransport mcpClient tools toolNames result |
+
+	scriptLines := #(
+		'from mcp.server.mcpserver import MCPServer'
+		'mcp = MCPServer("PythonStdioServer")'
+		'@mcp.tool()'
+		'def add_numbers(a: int, b: int) -> int:'
+		'	return a + b'
+		'mcp.run(transport="stdio")').
 
 	stdioTransport :=
 		McpStdioClientTransport
-			command: 'python'
-			arguments: #('test_stdio_server.py')
+			command: 'uv'
+			arguments: { 'run'. '--with'. 'mcp'. 'python'. '-c'. CldtConstants::LineDelimiter join: scriptLines }
 			environment: nil
-			workingDirectory: 'C:\Users\sberman\repos\mcp-python'.
+			workingDirectory: nil.
 	stdioTransport requestTimeout: 15.
 
 	mcpClient := McpClient auto.
