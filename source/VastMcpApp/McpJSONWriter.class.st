@@ -8,8 +8,9 @@ Class {
   #vaVisibility : 'private' }
 McpJSONWriter >> encodeChar: char [
 
-	char = Grapheme crlf ifTrue: [
-		self encodeChar: Character cr; encodeChar: Character lf
+	(char codePoint isNil or: [ char = Grapheme crlf ]) ifTrue: [
+		char unicodeScalars do: [ :unicodeScalar |
+			super encodeChar: unicodeScalar asGrapheme ]
 	] ifFalse: [
 		super encodeChar: char ]
 ]
