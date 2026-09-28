@@ -39,7 +39,9 @@ McpOriginHttpClient >> clientForRedirectTo: destination [
 		destination localEndpointUrl transport.
 	nextClient isSstError ifTrue: [nextClient raise].
 	nextClient configuration
-		negotiationTimeout: self configuration negotiationTimeout.
+		negotiationTimeout: self configuration negotiationTimeout;
+		sendTimeout: self configuration sendTimeout;
+		receiveTimeout: self configuration receiveTimeout.
 	^nextClient
 
 ]

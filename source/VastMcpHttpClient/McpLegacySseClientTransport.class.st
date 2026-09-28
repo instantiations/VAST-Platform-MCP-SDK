@@ -153,8 +153,10 @@ McpLegacySseClientTransport >> configuredHttpClientFor: endpointUrl [
 	anHttpClient := McpOriginHttpClient forTransportScheme: transportIdentifier.
 	anHttpClient isSstError ifTrue: [anHttpClient raise].
 	configuration := anHttpClient configuration.
-	configuration notNil ifTrue: [configuration negotiationTimeout: self
-		requestTimeout * 1000].
+	configuration notNil ifTrue: [
+		configuration negotiationTimeout: self requestTimeout * 1000;
+			sendTimeout: self requestTimeout * 1000;
+			receiveTimeout: self requestTimeout * 1000].
 	^anHttpClient
 
 ]
