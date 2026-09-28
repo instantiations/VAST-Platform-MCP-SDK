@@ -4,14 +4,14 @@
 
 <strong>VAST Smalltalk implementation of the Model Context Protocol \(MCP\)</strong>
 
-\[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)\]\(LICENSE\)
-\[![VAST Platform](https://img.shields.io/badge/Platform-VAST%20Smalltalk-red.svg)\]\(https://www.instantiations.com/vast-platform/\)
-\[![Protocol](https://img.shields.io/badge/protocol-modelcontextprotocol.io-blue.svg)\]\(https://modelcontextprotocol.io\)
-\[![Specification](https://img.shields.io/badge/spec-2026--07--28-blue.svg)\]\(https://modelcontextprotocol.io/specification/2026-07-28\)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache2.0-blue.svg)](LICENSE)
+[![VAST Platform](https://img.shields.io/badge/Platform-VAST%20Smalltalk-blue.svg)](https://www.instantiations.com/vast-platform/)
+[![Protocol](https://img.shields.io/badge/protocol-modelcontextprotocol.io-blue.svg)](https://modelcontextprotocol.io)
+[![Specification](https://img.shields.io/badge/spec-2026--07--28-blue.svg)](https://modelcontextprotocol.io/specification/2026-07-28)
 
 </div>
 
-> \[!NOTE\]
+> [!NOTE]
 > **This SDK implements the modern [MCP 2026-07-28 specification](https://modelcontextprotocol.io/specification/2026-07-28)** \(stateless requests, per-request capability metadata, `server/discover`, and Streamable HTTP\), while retaining backward compatibility with earlier revisions \(`2025-11-25`, `2025-06-18`, `2025-03-26`, and `2024-11-05` handshake-era protocols and legacy SSE\).
 > 
 > Choose your client mode explicitly or allow automatic negotiation:
@@ -23,14 +23,6 @@
 > * `#auto` \(`McpClient auto`\): Modern discovery with fallback to legacy handshake.
 > 
 > **External interoperability target:** Official Python MCP SDK `2.1.1`.
-
----
-
-## Documentation
-
-* **Developer Guide:** See [`VastMcp_Developer_Guide.md`](VastMcp_Developer_Guide.md) for in-depth architecture, security boundaries, multi-round-trip elicitation, request signing, and troubleshooting.
-
-* **Specification:** [Model Context Protocol Specification](https://modelcontextprotocol.io/specification/2026-07-28).
 
 ---
 
@@ -48,39 +40,23 @@ With the VAST MCP SDK you can:
 
 ---
 
-## Requirements (TODO)
+## Requirements
 
 * **VAST Platform Smalltalk** 15 (or later).
 
-* **Core Applications:**
-  
-  * `VastMcpApp` \(protocol model, server dispatcher, registries, in-memory & stdio transports\)
-  
-  * `VastMcpHttpApp` \(SST-based Streamable HTTP server & client, legacy SSE\)
-
-* **Base Prerequisites:**
-  
-  * `EsBase64CoderApp`, `EsUUIDApp`, `RegexCoreApp`, `VastJsonCanonicalizationApp`, `NeoJSONCoreApp`
-  
-  * For HTTP transports: `SstHttpsCommunications`, `SstHttpServletSupport`
+* **OpenSSL libraries** installed and [configured in VAST](https://www.instantiations.com/vast-support/documentation/FAQ/index.html#page/FAQ/va09002.html).
 
 ---
 
 ## Installation / Loading (TODO)
 
-Load the configuration map **`VastMcp`** via the ENVY/Image Configuration Maps browser or your Tonel / automated script:
+* Clone, or [download a ZIP archive](https://github.com/instantiations/VAST-Platform-MCP-SDK/archive/refs/heads/main.zip) of, this repository.
 
-```smalltalk
-"Load the VastMcp configuration map in your VAST image"
-(EmConfigurationMap editionsFor: 'VastMcp') first loadWithComponents.
-```
-Or load the individual applications:
+* In VAST, load [Tonel](https://www.instantiations.com/vast-support/documentation/1500/#page/sg/tonel/tnl01-index.520.02.html) support: from the System Transcript window, use the menu item *Tools › Load/Unload Features* and load the ‘ST: Tonel Support’ feature.
 
-1. `VastMcpApp`
+* From the Configuration Maps Browser, use the menu item *Names › Import › Load Configuration Maps from Tonel Repository* and select the root directory of the local clone or extracted archive of the repository.
 
-2. `VastMcpHttpApp`
-
-3. *\(Optional for running tests\)* `VastMcpTestsApp`, `VastMcpHttpTestsApp`
+* In the window that opens, add and load the config map for the MCP SDK that corresponds to your version of VAST. At this time, only `MCP SDK (VAST 15.0)`.
 
 ---
 
