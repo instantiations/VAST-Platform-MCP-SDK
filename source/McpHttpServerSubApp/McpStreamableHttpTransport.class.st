@@ -605,30 +605,31 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 				self streamSubscriptionsListen: parsedRequest on: connection request: aRequest]].
 
 	hasProgress := false.
-	(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
-		(p isKindOf: KeyedCollection) ifTrue: [
-			(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
-				(m isKindOf: KeyedCollection) ifTrue: [
-					(m includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
-			(p includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+	(parsedRequest isKindOf: KeyedCollection)
+		ifTrue: [
+			(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
+				(p isKindOf: KeyedCollection)
+					ifTrue: [
+						(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
+							(m isKindOf: KeyedCollection)
+								ifTrue: [
+									(m includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+						(p includesKey: 'progressToken') ifTrue: [hasProgress := true]]]].
 
 	accept := aRequest getHeader: 'Accept'.
-	(hasProgress
-		and: [
-			(self acceptHeader: accept includesMediaType: 'text/event-stream')
-				and: [aRequest isKindOf: SstHttpServletRequest]])
-					ifTrue: [
-						aRequest header responseHeader
-							status: '200 OK';
-							contentType: 'text/event-stream; charset=utf-8';
-							at: 'Cache-Control' put: 'no-cache';
-							at: 'Connection' put: 'keep-alive'.
-						^[:connection |
-							self
-								streamToolCallWithProgress: parsedRequest
-								on: connection
-								request: aRequest
-								session: nil]].
+	(hasProgress and: [self acceptHeader: accept includesMediaType: 'text/event-stream'])
+		ifTrue: [
+			aRequest header responseHeader
+				status: '200 OK';
+				contentType: 'text/event-stream; charset=utf-8';
+				at: 'Cache-Control' put: 'no-cache';
+				at: 'Connection' put: 'keep-alive'.
+			^[:connection |
+				self
+					streamToolCallWithProgress: parsedRequest
+					on: connection
+					request: aRequest
+					session: nil]].
 
 	requestContext := self modernRequestContextFor: aRequest message: parsedRequest.
 	dispatcherResponse := self dispatcher dispatch: parsedRequest context: requestContext.
@@ -733,30 +734,31 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 			^self formatSuccessResponseFor: aRequest payload: errorResponse].
 
 	hasProgress := false.
-	(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
-		(p isKindOf: KeyedCollection) ifTrue: [
-			(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
-				(m isKindOf: KeyedCollection) ifTrue: [
-					(m includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
-			(p includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+	(parsedRequest isKindOf: KeyedCollection)
+		ifTrue: [
+			(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
+				(p isKindOf: KeyedCollection)
+					ifTrue: [
+						(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
+							(m isKindOf: KeyedCollection)
+								ifTrue: [
+									(m includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+						(p includesKey: 'progressToken') ifTrue: [hasProgress := true]]]].
 
 	accept := aRequest getHeader: 'Accept'.
-	(hasProgress
-		and: [
-			(self acceptHeader: accept includesMediaType: 'text/event-stream')
-				and: [aRequest isKindOf: SstHttpServletRequest]])
-					ifTrue: [
-						aRequest header responseHeader
-							status: '200 OK';
-							contentType: 'text/event-stream; charset=utf-8';
-							at: 'Cache-Control' put: 'no-cache';
-							at: 'Connection' put: 'keep-alive'.
-						^[:connection |
-							self
-								streamToolCallWithProgress: parsedRequest
-								on: connection
-								request: aRequest
-								session: session]].
+	(hasProgress and: [self acceptHeader: accept includesMediaType: 'text/event-stream'])
+		ifTrue: [
+			aRequest header responseHeader
+				status: '200 OK';
+				contentType: 'text/event-stream; charset=utf-8';
+				at: 'Cache-Control' put: 'no-cache';
+				at: 'Connection' put: 'keep-alive'.
+			^[:connection |
+				self
+					streamToolCallWithProgress: parsedRequest
+					on: connection
+					request: aRequest
+					session: session]].
 
 	dispatcherResponse := self dispatcher dispatch: parsedRequest context: requestContext.
 	dispatcherResponse ifNil: [^self formatAcceptedResponseFor: aRequest].

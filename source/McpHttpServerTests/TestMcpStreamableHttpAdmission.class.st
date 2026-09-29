@@ -999,6 +999,45 @@ TestMcpStreamableHttpAdmission >> testModernToolCallValidatesMatchingMcpParamHea
 		equals: 'Deployed to us-west1'
 ]
 
+{ #category : 'Protocol Operations' }
+TestMcpStreamableHttpAdmission >> testModernToolCallWithProgressStreamsSse [
+	"A modern tools/call with progressToken and text/event-stream Accept header switches to streaming."
+
+	| tool message request response |
+
+	tool :=
+		McpBlockTool new
+			name: 'heavy.work';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:arguments :ctx |
+				ctx ifNotNil: [ctx reportProgress: 50 total: 100 message: 'Halfway'].
+				'Done'];
+			yourself.
+	protocolServer toolRegistry registerTool: tool.
+
+	message :=
+		self
+			toolCallMessageNamed: 'heavy.work'
+			arguments: EsOrderedDictionary new
+			id: 301.
+	(message at: 'params')
+		at: '_meta'
+		put: (EsOrderedDictionary with: 'progressToken' -> 'prog-1').
+
+	request :=
+		(self requestForMessage: message)
+			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Accept' put: 'application/json, text/event-stream';
+			yourself.
+	response := transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '200 OK'.
+	self assert: (
+		(request header responseHeader contentType
+			indexOfSubCollection: 'text/event-stream'
+			startingAt: 1) > 0).
+	self assert: response isBlock
+]
+
 { #category : 'Validation' }
 TestMcpStreamableHttpAdmission >> testNumericMcpParamHeaderComparison [
 	"A modern request whose integer parameter header matches numerically (e.g. 42 vs 42.0) succeeds."
