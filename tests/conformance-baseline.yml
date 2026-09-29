@@ -1,0 +1,70 @@
+# ==============================================================================
+# MCP Conformance Test Baseline for Modern MCP (2026-07-28 Specification)
+#
+# Used when the runner executes the full historical suite without --requirements.
+# Excuses scenarios from earlier revisions (20242025) that were deprecated or
+# removed by the modern 2026-07-28 specification, as well as optional extensions.
+# ==============================================================================
+
+server:
+  # ----------------------------------------------------------------------------
+  # 1. Deprecated in 2026-07-28: Server Utilities & Handshake Subscriptions
+  # ----------------------------------------------------------------------------
+  # Removed in 2026-07-28: Replaced by per-request `_meta['io.modelcontextprotocol/logLevel']`
+  - logging-set-level
+
+  # Removed in 2026-07-28: Health check utility removed from modern spec
+  # - ping
+
+  # Removed in 2026-07-28: Replaced by modern `subscriptions/listen` SSE stream
+  - resources-subscribe
+  - resources-unsubscribe
+
+  # ----------------------------------------------------------------------------
+  # 2. Deprecated in 2026-07-28: In-Band Bidirectional Server Requests
+  # ----------------------------------------------------------------------------
+  # Removed in 2026-07-28: Replaced by stateless SEP-2322 MRTR (input_required)
+  - tools-call-elicitation
+  - tools-call-sampling
+
+  # Removed in 2026-07-28: SEP-2575 prohibits unrequested notifications during tool calls
+  - tools-call-with-logging
+
+  # ----------------------------------------------------------------------------
+  # 3. Optional Protocol Extensions (SEP-1730: Not required for any tier)
+  # ----------------------------------------------------------------------------
+  # SEP-2663: io.modelcontextprotocol/tasks
+  - tasks-lifecycle
+  - tasks-capability-negotiation
+  - tasks-wire-fields
+  - tasks-request-state-removal
+  - tasks-mrtr-input
+  - tasks-request-headers
+  - tasks-dispatch-and-envelope
+  - tasks-required-task-error
+  - tasks-mrtr-composition
+
+  # SEP-2640: io.modelcontextprotocol/skills
+  - skills-directory
+  - skills-enumeration
+  - skills-manifest
+
+  # ----------------------------------------------------------------------------
+  # 4. Pending Harness Scenarios (Harness tests unverified on reference fixture)
+  # ----------------------------------------------------------------------------
+  - json-schema-2020-12
+  - server-sse-polling
+  - http-header-validation
+  - http-custom-header-server-validation
+
+client:
+  # ----------------------------------------------------------------------------
+  # Optional OAuth / Authentication Extensions
+  # ----------------------------------------------------------------------------
+  - auth/client-credentials-jwt
+  - auth/client-credentials-basic
+  - auth/enterprise-managed-authorization
+  - auth/dpop
+  - auth/dpop-nonce
+  - auth/wif-jwt-bearer
+  - sse-retry
