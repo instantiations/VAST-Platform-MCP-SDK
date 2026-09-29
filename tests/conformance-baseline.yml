@@ -1,33 +1,33 @@
 # ==============================================================================
 # MCP Conformance Test Baseline for Modern MCP (2026-07-28 Specification)
 #
-# Used when the runner executes the full historical suite without --requirements.
-# Excuses scenarios from earlier revisions (20242025) that were deprecated or
-# removed by the modern 2026-07-28 specification, as well as optional extensions.
+# Excuses all historical scenarios (from 2024 and 2025 revisions) that were
+# deprecated or removed by the 2026-07-28 specification, plus optional extensions.
 # ==============================================================================
 
 server:
   # ----------------------------------------------------------------------------
-  # 1. Deprecated in 2026-07-28: Server Utilities & Handshake Subscriptions
+  # 1. Deprecated in 2026-07-28: Elicitation & Sampling (Replaced by SEP-2322 MRTR)
   # ----------------------------------------------------------------------------
-  # Removed in 2026-07-28: Replaced by per-request `_meta['io.modelcontextprotocol/logLevel']`
+  - tools-call-elicitation
+  - tools-call-sampling
+  - elicitation-sep1034-defaults
+  - elicitation-sep1330-enums
+
+  # ----------------------------------------------------------------------------
+  # 2. Deprecated in 2026-07-28: Server Utilities & Handshake Subscriptions
+  # ----------------------------------------------------------------------------
+  # Replaced by per-request `_meta['io.modelcontextprotocol/logLevel']`
   - logging-set-level
 
-  # Removed in 2026-07-28: Health check utility removed from modern spec
-  # - ping
+  # Ping utility removed from modern specification
+  - ping
 
-  # Removed in 2026-07-28: Replaced by modern `subscriptions/listen` SSE stream
+  # Deprecated in 2026-07-28: Replaced by modern `subscriptions/listen` SSE stream
   - resources-subscribe
   - resources-unsubscribe
 
-  # ----------------------------------------------------------------------------
-  # 2. Deprecated in 2026-07-28: In-Band Bidirectional Server Requests
-  # ----------------------------------------------------------------------------
-  # Removed in 2026-07-28: Replaced by stateless SEP-2322 MRTR (input_required)
-  - tools-call-elicitation
-  - tools-call-sampling
-
-  # Removed in 2026-07-28: SEP-2575 prohibits unrequested notifications during tool calls
+  # SEP-2575 forbids unrequested logging notifications during tool calls
   - tools-call-with-logging
 
   # ----------------------------------------------------------------------------
@@ -50,7 +50,7 @@ server:
   - skills-manifest
 
   # ----------------------------------------------------------------------------
-  # 4. Pending Harness Scenarios (Harness tests unverified on reference fixture)
+  # 4. Pending Referee Scenarios (Harness tests unverified on reference fixture)
   # ----------------------------------------------------------------------------
   - json-schema-2020-12
   - server-sse-polling
@@ -58,6 +58,12 @@ server:
   - http-custom-header-server-validation
 
 client:
+  # ----------------------------------------------------------------------------
+  # Legacy Client Elicitation & Transport Retry
+  # ----------------------------------------------------------------------------
+  - elicitation-sep1034-client-defaults
+  - sse-retry
+
   # ----------------------------------------------------------------------------
   # Optional OAuth / Authentication Extensions
   # ----------------------------------------------------------------------------
@@ -67,4 +73,4 @@ client:
   - auth/dpop
   - auth/dpop-nonce
   - auth/wif-jwt-bearer
-  - sse-retry
+  

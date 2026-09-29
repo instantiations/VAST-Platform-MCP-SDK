@@ -1038,6 +1038,66 @@ TestMcpStreamableHttpAdmission >> testModernToolCallWithProgressStreamsSse [
 	self assert: response isBlock
 ]
 
+{ #category : 'Protocol Operations' }
+TestMcpStreamableHttpAdmission >> testMultipleConcurrentPostRequestsOnSameSession [
+	"Multiple concurrent POST requests within the same session dispatch successfully."
+
+	| exchange session tool req1 req2 req3 resp1 resp2 resp3 |
+
+	tool :=
+		self
+			toolNamed: 'echo.tool'
+			block: [:args | 'echoed'].
+	protocolServer toolRegistry registerTool: tool.
+
+	exchange := self performInitializationId: 120.
+	session := exchange at: 'session'.
+	session markReady.
+
+	req1 :=
+		(self
+			requestForMessage: (
+				self
+					toolCallMessageNamed: 'echo.tool'
+					arguments: EsOrderedDictionary new
+					id: 121)
+			session: session)
+				headerAt: 'mcp-protocol-version' put: '2025-11-25';
+				yourself.
+	req2 :=
+		(self
+			requestForMessage: (
+				self
+					toolCallMessageNamed: 'echo.tool'
+					arguments: EsOrderedDictionary new
+					id: 122)
+			session: session)
+				headerAt: 'mcp-protocol-version' put: '2025-11-25';
+				yourself.
+	req3 :=
+		(self
+			requestForMessage: (
+				self
+					toolCallMessageNamed: 'echo.tool'
+					arguments: EsOrderedDictionary new
+					id: 123)
+			session: session)
+				headerAt: 'mcp-protocol-version' put: '2025-11-25';
+				yourself.
+
+	resp1 := transport handlePostRequest: req1.
+	resp2 := transport handlePostRequest: req2.
+	resp3 := transport handlePostRequest: req3.
+
+	self assert: req1 header responseHeader status equals: '200 OK'.
+	self assert: req2 header responseHeader status equals: '200 OK'.
+	self assert: req3 header responseHeader status equals: '200 OK'.
+
+	self assert: ((McpJSONReader on: resp1 readStream) next at: 'id') equals: 121.
+	self assert: ((McpJSONReader on: resp2 readStream) next at: 'id') equals: 122.
+	self assert: ((McpJSONReader on: resp3 readStream) next at: 'id') equals: 123
+]
+
 { #category : 'Validation' }
 TestMcpStreamableHttpAdmission >> testNumericMcpParamHeaderComparison [
 	"A modern request whose integer parameter header matches numerically (e.g. 42 vs 42.0) succeeds."
@@ -1347,6 +1407,25 @@ TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpParamHeaderMatches [
 	self assert: request header responseHeader status equals: '200 OK'.
 	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 302
+]
+
+{ #category : 'Validation' }
+TestMcpStreamableHttpAdmission >> testSessionBoundRequestAcceptsSupportedProtocolVersion [
+	"A session-bound request carrying a supported protocol version dispatches successfully."
+
+	| exchange session request response body |
+
+	exchange := self performInitializationId: 94.
+	session := exchange at: 'session'.
+	session markReady.
+	request :=
+		(self requestForMessage: (self jsonRpcMessageMethod: 'ping' id: 95) session: session)
+			headerAt: 'MCP-Protocol-Version' put: '2025-11-25';
+			yourself.
+	response := transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '200 OK'.
+	body := (McpJSONReader on: response readStream) next.
+	self assert: (body at: 'id') equals: 95
 ]
 
 { #category : 'Testing' }

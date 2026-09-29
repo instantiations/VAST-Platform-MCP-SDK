@@ -1606,12 +1606,13 @@ McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest session: sess
 
 	protocolVersion := aRequest getHeader: 'MCP-Protocol-Version'.
 	protocolVersion ifNil: [protocolVersion := aRequest getHeader: 'mcp-protocol-version'].
-	(protocolVersion notNil and: [protocolVersion ~= session protocolVersion])
-		ifTrue: [
-			aRequest header responseHeader
-				status: '400 Bad Request';
-				contentLength: 0.
-			^''].
+	(protocolVersion notNil
+		and: [(self dispatcher server supportedProtocolVersions includes: protocolVersion) not])
+			ifTrue: [
+				aRequest header responseHeader
+					status: '400 Bad Request';
+					contentLength: 0.
+				^''].
 	^nil
 ]
 
