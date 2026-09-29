@@ -572,7 +572,7 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 	 Answers:
 		<String> or <Block> HTTP response entity."
 
-	| requestContext dispatcherResponse routingError paramError isListen |
+	| requestContext dispatcherResponse routingError paramError isListen hasProgress accept |
 
 	(parsedRequest isKindOf: KeyedCollection)
 		ifFalse: [
@@ -586,6 +586,8 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 	paramError ifNotNil: [^paramError].
 	(parsedRequest includesKey: 'id')
 		ifFalse: [
+			requestContext := self modernRequestContextFor: aRequest message: parsedRequest.
+			self dispatcher dispatch: parsedRequest context: requestContext.
 			aRequest header responseHeader
 				status: '202 Accepted';
 				contentLength: 0.
@@ -601,6 +603,32 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 				at: 'Connection' put: 'keep-alive'.
 			^[:connection |
 				self streamSubscriptionsListen: parsedRequest on: connection request: aRequest]].
+
+	hasProgress := false.
+	(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
+		(p isKindOf: KeyedCollection) ifTrue: [
+			(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
+				(m isKindOf: KeyedCollection) ifTrue: [
+					(m includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+			(p includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+
+	accept := aRequest getHeader: 'Accept'.
+	(hasProgress
+		and: [
+			(self acceptHeader: accept includesMediaType: 'text/event-stream')
+				and: [aRequest isKindOf: SstHttpServletRequest]])
+					ifTrue: [
+						aRequest header responseHeader
+							status: '200 OK';
+							contentType: 'text/event-stream; charset=utf-8';
+							at: 'Cache-Control' put: 'no-cache';
+							at: 'Connection' put: 'keep-alive'.
+						^[:connection |
+							self
+								streamToolCallWithProgress: parsedRequest
+								on: connection
+								request: aRequest
+								session: nil]].
 
 	requestContext := self modernRequestContextFor: aRequest message: parsedRequest.
 	dispatcherResponse := self dispatcher dispatch: parsedRequest context: requestContext.
@@ -668,7 +696,7 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 	 Answers:
 		<String> HTTP response entity."
 
-	| method dispatcherResponse errorResponse requestContext |
+	| method dispatcherResponse errorResponse requestContext hasProgress accept |
 
 	method :=
 		(parsedRequest isKindOf: KeyedCollection)
@@ -703,6 +731,33 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 					id: (parsedRequest at: 'id')
 					data: nil.
 			^self formatSuccessResponseFor: aRequest payload: errorResponse].
+
+	hasProgress := false.
+	(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
+		(p isKindOf: KeyedCollection) ifTrue: [
+			(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
+				(m isKindOf: KeyedCollection) ifTrue: [
+					(m includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+			(p includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+
+	accept := aRequest getHeader: 'Accept'.
+	(hasProgress
+		and: [
+			(self acceptHeader: accept includesMediaType: 'text/event-stream')
+				and: [aRequest isKindOf: SstHttpServletRequest]])
+					ifTrue: [
+						aRequest header responseHeader
+							status: '200 OK';
+							contentType: 'text/event-stream; charset=utf-8';
+							at: 'Cache-Control' put: 'no-cache';
+							at: 'Connection' put: 'keep-alive'.
+						^[:connection |
+							self
+								streamToolCallWithProgress: parsedRequest
+								on: connection
+								request: aRequest
+								session: session]].
+
 	dispatcherResponse := self dispatcher dispatch: parsedRequest context: requestContext.
 	dispatcherResponse ifNil: [^self formatAcceptedResponseFor: aRequest].
 	^self formatSuccessResponseFor: aRequest payload: dispatcherResponse
@@ -1204,6 +1259,70 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
 								do: [:err | completion signal]].
 
 	[completion wait] ensure: [bus unsubscribe: subscription].
+	^nil
+]
+
+{ #category : 'Message Handling',
+  #vaVisibility : 'private' }
+McpStreamableHttpTransport >> streamToolCallWithProgress: parsedRequest on: connection request: aRequest session: sessionOrNil [
+	"Stream SSE progress notifications and final response for a tool call.
+
+	 Arguments:
+		parsedRequest - <KeyedCollection> decoded JSON-RPC request.
+		connection - <SstHttpConnection> active HTTP connection.
+		aRequest - <SstHttpServletRequest> original servlet request.
+		sessionOrNil - <McpStreamableHttpSession> or nil.
+	 Answers:
+		nil."
+
+	| requestContext lf streamMutex dispatcherResponse |
+
+	lf := String with: Character lf.
+	streamMutex := Semaphore forMutualExclusion.
+
+	[
+		streamMutex critical: [
+			connection stream
+				nextPutAll: (':' , lf , lf) asUtf8Bytes asString;
+				flush]
+	] on: Error do: [:e | ^nil].
+
+	requestContext :=
+		sessionOrNil
+			ifNotNil: [self requestContextFor: aRequest session: sessionOrNil]
+			ifNil: [self modernRequestContextFor: aRequest message: parsedRequest].
+
+	requestContext progressReporter: [:progressParams | | notifFrame notifMsg |
+		notifMsg :=
+			EsOrderedDictionary new
+				at: 'jsonrpc' put: '2.0';
+				at: 'method' put: 'notifications/progress';
+				at: 'params' put: progressParams;
+				yourself.
+		notifFrame :=
+			'event: message' , lf , 'data: ' , (
+				String streamContents: [:s | (McpJSONWriter on: s) nextPut: notifMsg]) , lf , lf.
+		[
+			streamMutex critical: [
+				connection stream
+					nextPutAll: notifFrame asUtf8Bytes asString;
+					flush]
+		] on: Error do: [:e | nil]].
+
+	dispatcherResponse :=
+		self dispatcher dispatch: parsedRequest context: requestContext.
+
+	dispatcherResponse ifNotNil: [| respFrame |
+		respFrame :=
+			'event: message' , lf , 'data: ' , (
+				String streamContents: [:s | (McpJSONWriter on: s) nextPut: dispatcherResponse]) , lf , lf.
+		[
+			streamMutex critical: [
+				connection stream
+					nextPutAll: respFrame asUtf8Bytes asString;
+					flush]
+		] on: Error do: [:e | nil]].
+
 	^nil
 ]
 
