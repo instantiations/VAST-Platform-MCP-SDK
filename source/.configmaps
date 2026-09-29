@@ -1,16 +1,18 @@
 [
 	{
 		#formatVersion : '1.1',
-		#name : 'VastMcp',
+		#name : 'MCP SDK',
+		#versionName : '1.0.0',
+		#ts : 3968074339,
 		#applications : [
 			{
-				#name : 'VastJsonCanonicalizationApp'
+				#name : 'JsonCanonicalizationApp'
 			},
 			{
-				#name : 'VastMcpApp'
+				#name : 'McpApp'
 			},
 			{
-				#name : 'VastMcpHttpApp'
+				#name : 'McpHttpApp'
 			}
 		],
 		#conditions : [
@@ -19,6 +21,10 @@
 				#requiredMaps : [
 					{
 						#name : 'z.ST: Grease',
+						#versionName : 'V 15.0.0  [593]'
+					},
+					{
+						#name : 'z.ST: JSON Support',
 						#versionName : 'V 15.0.0  [593]'
 					},
 					{
@@ -36,13 +42,15 @@
 	},
 	{
 		#formatVersion : '1.1',
-		#name : 'VastMcp Tests',
+		#name : 'Test MCP SDK',
+		#versionName : '1.0.0',
+		#ts : 3968074338,
 		#applications : [
 			{
-				#name : 'VastMcpHttpTestsApp'
+				#name : 'McpHttpTestsApp'
 			},
 			{
-				#name : 'VastMcpTestsApp'
+				#name : 'McpTestsApp'
 			}
 		],
 		#conditions : [
@@ -54,7 +62,8 @@
 						#versionName : 'V 15.0.0  [593]'
 					},
 					{
-						#name : 'VastMcp'
+						#name : 'MCP SDK',
+						#versionName : '1.0.0'
 					}
 				]
 			}
