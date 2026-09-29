@@ -325,3 +325,10 @@ JSON-RPC errors are signaled as `McpJsonRpcError`, while tool-level domain error
 Standard JSON-RPC error codes are available in `McpJsonRpcConstants`.
 
 ---
+## Contributing
+
+We encourage contributions! Please check the guidelines in the [CONTRIBUTING](CONTRIBUTING.md) file.
+
+## License
+
+The source code is distributed under the Apache 2.0 license. See the [LICENSE](LICENSE) file for details.
