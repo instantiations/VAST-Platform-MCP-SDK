@@ -20,16 +20,10 @@ Owned by `McpHttpServer`. Thread-safe concurrent request dispatching.
 "
 Class {
 	#name : 'McpStreamableHttpTransport',
-	#superclass : 'Object',
+	#superclass : 'McpHttpServerTransport',
 	#instVars : [
-		'dispatcher',
-		'allowedOrigins',
 		'sessions',
 		'sessionMutex',
-		'maximumRequestSize',
-		'requestContextFactory',
-		'allowedHosts',
-		'authSettings',
 		'sessionIdleTimeout',
 		'maxSessions',
 		'sessionClock',
@@ -70,101 +64,6 @@ McpStreamableHttpTransport >> acceptHeader: acceptHeader includesMediaType: requ
 		separator := mediaType indexOf: $;.
 		separator > 0 ifTrue: [mediaType := (mediaType copyFrom: 1 to: separator - 1) trimBlanks].
 		mediaType sameAs: requiredMediaType]
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> allowedHosts [
-	"Answer the set of allowed Host header values.
-
-	 Answers:
-		<Set> of <String>."
-
-	allowedHosts ifNil: [allowedHosts := Set new].
-	^allowedHosts copy
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> allowedHosts: aCollection [
-	"Set the allowed Host header values for DNS rebinding protection.
-
-	 Arguments:
-		aCollection - <Collection> of <String> hostnames or patterns.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	| newHosts |
-
-	newHosts := Set new.
-	aCollection do: [:each |
-		(each isString and: [each isEmpty not])
-			ifFalse: [self error: 'Allowed host must be a nonempty string'].
-		newHosts add: each copy].
-	allowedHosts := newHosts.
-	^self
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> allowedOrigins [
-	"Answer a deeply detached snapshot of allowed HTTP Origin values.
-
-	 Answers:
-		<Collection> of <String>."
-
-	| snapshot |
-
-	snapshot := Set new.
-	allowedOrigins do: [:origin | snapshot add: origin copy].
-	^snapshot
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> allowedOrigins: aCollection [
-	"Validate and retain a detached Origin allowlist.
-
-	 An empty collection denies every request that carries an Origin header.
-	 Requests without an Origin header remain valid for non-browser clients.
-
-	 Arguments:
-		aCollection - <Collection> of nonempty <String> origins.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	| snapshot |
-
-	(aCollection isCollection and: [aCollection isString not])
-		ifFalse: [self error: 'Allowed origins must be a collection'].
-	snapshot := Set new.
-	aCollection do: [:origin |
-		(origin isString and: [origin isEmpty not])
-			ifFalse: [self error: 'Each allowed origin must be a non-empty string'].
-		snapshot add: origin copy].
-	allowedOrigins := snapshot.
-	^self
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> authSettings [
-	"Answer the OAuth authentication settings, or nil.
-
-	 Answers:
-		<McpAuthSettings> or nil."
-
-	^authSettings
-]
-
-{ #category : 'Configuration' }
-McpStreamableHttpTransport >> authSettings: anAuthSettings [
-	"Set the OAuth authentication settings.
-
-	 Arguments:
-		anAuthSettings - <McpAuthSettings> or nil.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	anAuthSettings ifNotNil: [anAuthSettings validateConfiguration].
-	authSettings := anAuthSettings.
-	^self
-
 ]
 
 { #category : 'Resource Management' }
@@ -269,32 +168,6 @@ McpStreamableHttpTransport >> decodeHeaderValue: aHeaderString [
 	b64 := aHeaderString copyFrom: 10 to: aHeaderString size - 2.
 	payloadBytes := [Base64Coder current decodeAsByteArray: b64] on: Error do: [:e | ^aHeaderString].
 	^[(UnicodeString utf8: payloadBytes) asString] on: Error do: [:e | payloadBytes asString]
-]
-
-{ #category : 'Dispatching' }
-McpStreamableHttpTransport >> dispatcher [
-	"Answer the configured JSON-RPC dispatcher.
-
-	 Answers:
-		<McpJsonRpcDispatcher>."
-
-	dispatcher ifNil: [self error: 'MCP HTTP dispatcher is not configured'].
-	^dispatcher
-]
-
-{ #category : 'Dispatching' }
-McpStreamableHttpTransport >> dispatcher: aDispatcher [
-	"Set the JSON-RPC dispatcher used for HTTP requests.
-
-	 Arguments:
-		aDispatcher - <McpJsonRpcDispatcher> configured dispatcher.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	(aDispatcher isKindOf: McpJsonRpcDispatcher)
-		ifFalse: [self error: 'MCP HTTP dispatcher must be an McpJsonRpcDispatcher'].
-	dispatcher := aDispatcher.
-	^self
 ]
 
 { #category : 'Formatting',
@@ -572,7 +445,7 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 	 Answers:
 		<String> or <Block> HTTP response entity."
 
-	| requestContext dispatcherResponse routingError paramError isListen |
+	| requestContext dispatcherResponse routingError paramError isListen hasProgress accept |
 
 	(parsedRequest isKindOf: KeyedCollection)
 		ifFalse: [
@@ -586,6 +459,8 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 	paramError ifNotNil: [^paramError].
 	(parsedRequest includesKey: 'id')
 		ifFalse: [
+			requestContext := self modernRequestContextFor: aRequest message: parsedRequest.
+			self dispatcher dispatch: parsedRequest context: requestContext.
 			aRequest header responseHeader
 				status: '202 Accepted';
 				contentLength: 0.
@@ -601,6 +476,33 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 				at: 'Connection' put: 'keep-alive'.
 			^[:connection |
 				self streamSubscriptionsListen: parsedRequest on: connection request: aRequest]].
+
+	hasProgress := false.
+	(parsedRequest isKindOf: KeyedCollection)
+		ifTrue: [
+			(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
+				(p isKindOf: KeyedCollection)
+					ifTrue: [
+						(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
+							(m isKindOf: KeyedCollection)
+								ifTrue: [
+									(m includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+						(p includesKey: 'progressToken') ifTrue: [hasProgress := true]]]].
+
+	accept := aRequest getHeader: 'Accept'.
+	(hasProgress and: [self acceptHeader: accept includesMediaType: 'text/event-stream'])
+		ifTrue: [
+			aRequest header responseHeader
+				status: '200 OK';
+				contentType: 'text/event-stream; charset=utf-8';
+				at: 'Cache-Control' put: 'no-cache';
+				at: 'Connection' put: 'keep-alive'.
+			^[:connection |
+				self
+					streamToolCallWithProgress: parsedRequest
+					on: connection
+					request: aRequest
+					session: nil]].
 
 	requestContext := self modernRequestContextFor: aRequest message: parsedRequest.
 	dispatcherResponse := self dispatcher dispatch: parsedRequest context: requestContext.
@@ -668,7 +570,7 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 	 Answers:
 		<String> HTTP response entity."
 
-	| method dispatcherResponse errorResponse requestContext |
+	| method dispatcherResponse errorResponse requestContext hasProgress accept |
 
 	method :=
 		(parsedRequest isKindOf: KeyedCollection)
@@ -703,6 +605,34 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 					id: (parsedRequest at: 'id')
 					data: nil.
 			^self formatSuccessResponseFor: aRequest payload: errorResponse].
+
+	hasProgress := false.
+	(parsedRequest isKindOf: KeyedCollection)
+		ifTrue: [
+			(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
+				(p isKindOf: KeyedCollection)
+					ifTrue: [
+						(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
+							(m isKindOf: KeyedCollection)
+								ifTrue: [
+									(m includesKey: 'progressToken') ifTrue: [hasProgress := true]]].
+						(p includesKey: 'progressToken') ifTrue: [hasProgress := true]]]].
+
+	accept := aRequest getHeader: 'Accept'.
+	(hasProgress and: [self acceptHeader: accept includesMediaType: 'text/event-stream'])
+		ifTrue: [
+			aRequest header responseHeader
+				status: '200 OK';
+				contentType: 'text/event-stream; charset=utf-8';
+				at: 'Cache-Control' put: 'no-cache';
+				at: 'Connection' put: 'keep-alive'.
+			^[:connection |
+				self
+					streamToolCallWithProgress: parsedRequest
+					on: connection
+					request: aRequest
+					session: session]].
+
 	dispatcherResponse := self dispatcher dispatch: parsedRequest context: requestContext.
 	dispatcherResponse ifNil: [^self formatAcceptedResponseFor: aRequest].
 	^self formatSuccessResponseFor: aRequest payload: dispatcherResponse
@@ -730,45 +660,6 @@ McpStreamableHttpTransport >> initialize [
 	maintenanceStop := false.
 	^self
 
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> isAllowedHost: aHostString [
-	"Answer whether aHostString matches the configured allowedHosts.
-
-	 Arguments:
-		aHostString - <String> or nil, HTTP Host header value.
-	 Answers:
-		<Boolean>."
-
-	| normalizedHost |
-
-	self allowedHosts isEmpty ifTrue: [^true].
-	(self allowedHosts includes: '*') ifTrue: [^true].
-	normalizedHost := aHostString ifNil: [''].
-	(self allowedHosts includes: normalizedHost) ifTrue: [^true].
-	(normalizedHost includes: $:)
-		ifTrue: [| hostWithoutPort |
-			hostWithoutPort := normalizedHost copyFrom: 1 to: (normalizedHost indexOf: $:) - 1.
-			(self allowedHosts includes: hostWithoutPort) ifTrue: [^true]].
-	^false
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> isAllowedOrigin: origin [
-	"Answer whether an Origin matches the configured allowlist.
-
-	 HTTP Origin scheme and host names are case-insensitive.
-
-	 Arguments:
-		origin - <String> request Origin value.
-	 Answers:
-		<Boolean>."
-
-	allowedOrigins isEmpty ifTrue: [^false].
-	^allowedOrigins anySatisfy: [:allowedOrigin | allowedOrigin sameAs: origin]
 ]
 
 { #category : 'Accessing',
@@ -822,31 +713,6 @@ McpStreamableHttpTransport >> maxSessions: limit [
 		ifFalse: [self error: 'Invalid maxSessions'].
 	sessionMutex critical: [maxSessions := limit]
 
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> maximumRequestSize [
-	"Answer the maximum accepted JSON request size in bytes.
-
-	 Answers:
-		<Integer>."
-
-	^maximumRequestSize
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> maximumRequestSize: byteCount [
-	"Set the maximum accepted JSON request size in bytes.
-
-	 Arguments:
-		byteCount - <Integer> positive byte count.
-	 Answers:
-		<McpStreamableHttpTransport>."
-
-	byteCount isInteger ifFalse: [self error: 'Maximum request size must be an integer'].
-	byteCount > 0 ifFalse: [self error: 'Maximum request size must be positive'].
-	maximumRequestSize := byteCount.
-	^self
 ]
 
 { #category : 'Session Management',
@@ -926,31 +792,6 @@ McpStreamableHttpTransport >> removeSessionNamed: sessionId [
 		<McpStreamableHttpSession> or nil."
 
 	^sessionMutex critical: [sessions removeKey: sessionId ifAbsent: [nil]]
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> requestContextFactory [
-	"Answer the optional authenticated request-context factory.
-
-	 Answers:
-		<Block> accepting request and session, or nil."
-
-	^requestContextFactory
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> requestContextFactory: aBlock [
-	"Set the optional authenticated request-context factory.
-
-	 Arguments:
-		aBlock - <Block> accepting request and session, or nil.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	(aBlock notNil and: [aBlock isBlock not or: [aBlock numArgs ~= 2]])
-		ifTrue: [self error: 'MCP request-context factory must accept request and session'].
-	requestContextFactory := aBlock.
-	^self
 ]
 
 { #category : 'Accessing',
@@ -1207,41 +1048,66 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
 	^nil
 ]
 
-{ #category : 'Validation',
+{ #category : 'Message Handling',
   #vaVisibility : 'private' }
-McpStreamableHttpTransport >> validateAuthenticationFor: aRequest [
-	"Enforce Bearer authentication when authSettings is configured and enabled.
-	 Answers an error response string, or nil when valid.
+McpStreamableHttpTransport >> streamToolCallWithProgress: parsedRequest on: connection request: aRequest session: sessionOrNil [
+	"Stream SSE progress notifications and final response for a tool call.
 
 	 Arguments:
-		aRequest - <SstHttpServletRequest>.
+		parsedRequest - <KeyedCollection> decoded JSON-RPC request.
+		connection - <SstHttpConnection> active HTTP connection.
+		aRequest - <SstHttpServletRequest> original servlet request.
+		sessionOrNil - <McpStreamableHttpSession> or nil.
 	 Answers:
-		<String> or nil."
+		nil."
 
-	| authHeader token principal |
+	| requestContext lf streamMutex dispatcherResponse |
 
-	(self authSettings isNil or: [self authSettings enabled not]) ifTrue: [^nil].
+	lf := String with: Character lf.
+	streamMutex := Semaphore forMutualExclusion.
 
-	authHeader := aRequest getHeader: 'Authorization'.
-	authHeader ifNil: [authHeader := aRequest getHeader: 'authorization'].
-	(authHeader isNil or: [(authHeader beginsWithSubCollection: 'Bearer ') not])
-		ifTrue: [
-			aRequest header responseHeader
-				status: '401 Unauthorized';
-				at: 'WWW-Authenticate'
-					put: 'Bearer error="invalid_token", error_description="Bearer token required"';
-				contentLength: 0.
-			^''].
+	[
+		streamMutex critical: [
+			connection stream
+				nextPutAll: (':' , lf , lf) asUtf8Bytes asString;
+				flush]
+	] on: Error do: [:e | ^nil].
 
-	token := (authHeader copyFrom: 8 to: authHeader size) trimBlanks.
-	principal := self authSettings validateToken: token.
-	principal ifNil: [
-		aRequest header responseHeader
-			status: '401 Unauthorized';
-			at: 'WWW-Authenticate'
-				put: 'Bearer error="invalid_token", error_description="Invalid or expired token"';
-			contentLength: 0.
-		^''].
+	requestContext :=
+		sessionOrNil
+			ifNotNil: [self requestContextFor: aRequest session: sessionOrNil]
+			ifNil: [self modernRequestContextFor: aRequest message: parsedRequest].
+
+	requestContext progressReporter: [:progressParams | | notifFrame notifMsg |
+		notifMsg :=
+			EsOrderedDictionary new
+				at: 'jsonrpc' put: '2.0';
+				at: 'method' put: 'notifications/progress';
+				at: 'params' put: progressParams;
+				yourself.
+		notifFrame :=
+			'event: message' , lf , 'data: ' , (
+				String streamContents: [:s | (McpJSONWriter on: s) nextPut: notifMsg]) , lf , lf.
+		[
+			streamMutex critical: [
+				connection stream
+					nextPutAll: notifFrame asUtf8Bytes asString;
+					flush]
+		] on: Error do: [:e | nil]].
+
+	dispatcherResponse :=
+		self dispatcher dispatch: parsedRequest context: requestContext.
+
+	dispatcherResponse ifNotNil: [| respFrame |
+		respFrame :=
+			'event: message' , lf , 'data: ' , (
+				String streamContents: [:s | (McpJSONWriter on: s) nextPut: dispatcherResponse]) , lf , lf.
+		[
+			streamMutex critical: [
+				connection stream
+					nextPutAll: respFrame asUtf8Bytes asString;
+					flush]
+		] on: Error do: [:e | nil]].
 
 	^nil
 ]
@@ -1302,30 +1168,6 @@ McpStreamableHttpTransport >> validateHeadersFor: aRequest [
 		ifFalse: [
 			aRequest header responseHeader
 				status: '400 Bad Request';
-				contentLength: 0.
-			^''].
-	^nil
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> validateHostFor: aRequest [
-	"Validate the Host header against the configured allowlist.
-
-	 Arguments:
-		aRequest - <SstHttpServletRequest>.
-	 Answers:
-		<String> error response, or nil when the host is valid."
-
-	| hostHeader |
-
-	self allowedHosts isEmpty ifTrue: [^nil].
-	hostHeader := aRequest getHeader: 'Host'.
-	hostHeader ifNil: [hostHeader := aRequest getHeader: 'host'].
-	(self isAllowedHost: hostHeader)
-		ifFalse: [
-			aRequest header responseHeader
-				status: '403 Forbidden';
 				contentLength: 0.
 			^''].
 	^nil
@@ -1414,29 +1256,6 @@ McpStreamableHttpTransport >> validateMcpParamHeadersFor: aRequest message: pars
 
 { #category : 'Validation',
   #vaVisibility : 'private' }
-McpStreamableHttpTransport >> validateOriginFor: aRequest [
-	"Validate the optional Origin header against the configured allowlist.
-
-	 Arguments:
-		aRequest - <SstHttpServletRequest>.
-	 Answers:
-		<String> error response, or nil when the origin is valid."
-
-	| origin |
-
-	origin := aRequest getHeader: 'Origin'.
-	origin ifNotNil: [
-		(self isAllowedOrigin: origin)
-			ifFalse: [
-				aRequest header responseHeader
-					status: '403 Forbidden';
-					contentLength: 0.
-				^'']].
-	^nil
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
 McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest parsedRequest: parsedRequest [
 	"Validate the Streamable HTTP protocol-version header.
 
@@ -1473,24 +1292,25 @@ McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest parsedRequest
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest session: session [
-	"Require the protocol version negotiated for a server session.
+	"Validate that any supplied protocol version is supported by the server.
 
 	 Arguments:
 		aRequest - <SstHttpServletRequest>.
 		session - <McpStreamableHttpSession>.
 	 Answers:
-		<String> error response, or nil when the version matches."
+		<String> error response, or nil when the version is valid."
 
 	| protocolVersion |
 
 	protocolVersion := aRequest getHeader: 'MCP-Protocol-Version'.
 	protocolVersion ifNil: [protocolVersion := aRequest getHeader: 'mcp-protocol-version'].
-	(protocolVersion notNil and: [protocolVersion ~= session protocolVersion])
-		ifTrue: [
-			aRequest header responseHeader
-				status: '400 Bad Request';
-				contentLength: 0.
-			^''].
+	(protocolVersion notNil
+		and: [(self dispatcher server supportedProtocolVersions includes: protocolVersion) not])
+			ifTrue: [
+				aRequest header responseHeader
+					status: '400 Bad Request';
+					contentLength: 0.
+				^''].
 	^nil
 ]
 

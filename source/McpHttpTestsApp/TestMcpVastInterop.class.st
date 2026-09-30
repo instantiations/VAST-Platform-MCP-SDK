@@ -570,6 +570,65 @@ TestMcpVastInterop >> testVastClientHttpMultiRoundTripResolution [
 ]
 
 { #category : 'Integration Tests' }
+TestMcpVastInterop >> testVastClientHttpToolCallWithProgress [
+	"Live end-to-end: Tool execution with progress reporting over Streamable HTTP SSE response stream."
+
+	| mcpServer tool httpServer client receivedUpdates result |
+
+	mcpServer :=
+		McpServer new
+			name: 'ProgressServer';
+			version: '1.0.0';
+			yourself.
+	tool :=
+		McpBlockTool new
+			name: 'test_tool_with_progress';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:args :ctx |
+				ctx ifNotNil: [
+					ctx reportProgress: 0 total: 100 message: 'Starting'.
+					(Delay forMilliseconds: 50) wait.
+					ctx reportProgress: 50 total: 100 message: 'Halfway'.
+					(Delay forMilliseconds: 50) wait.
+					ctx reportProgress: 100 total: 100 message: 'Done'].
+				EsOrderedDictionary with: 'content' -> (Array with: (
+					EsOrderedDictionary
+						with: 'type' -> 'text'
+						with: 'text' -> 'Execution completed with progress.'))];
+			yourself.
+	mcpServer toolRegistry registerTool: tool.
+
+	httpServer :=
+		McpHttpServer new
+			port: 8925;
+			mcpServer: mcpServer;
+			start.
+	servers add: httpServer.
+
+	client := McpClient modern.
+	client transport: (McpHttpClientTransport url: 'http://127.0.0.1:8925/mcp').
+	clients add: client.
+	client connect.
+
+	receivedUpdates := OrderedCollection new.
+	result :=
+		client
+			callTool: 'test_tool_with_progress'
+			arguments: EsOrderedDictionary new
+			progressToken: 'progress-test-1'
+			progressCallback: [:prog :tot :msg |
+				receivedUpdates add: (Array with: prog with: tot with: msg)].
+
+	self assert: receivedUpdates size equals: 3.
+	self assert: receivedUpdates first equals: #(0 100 'Starting').
+	self assert: receivedUpdates second equals: #(50 100 'Halfway').
+	self assert: receivedUpdates third equals: #(100 100 'Done').
+	self
+		assert: ((result at: 'content') first at: 'text')
+		equals: 'Execution completed with progress.'
+]
+
+{ #category : 'Integration Tests' }
 TestMcpVastInterop >> testVastClientSubscriptionsListenOverHttp [
 	"Live end-to-end: Subscriptions/listen stream and change event notifications over HTTP."
 

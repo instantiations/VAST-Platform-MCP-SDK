@@ -1,0 +1,73 @@
+# ==============================================================================
+# MCP Conformance Test Baseline for Modern MCP (2026-07-28 Specification)
+#
+# Excuses all historical scenarios (from 2024 and 2025 revisions) that were
+# deprecated or removed by the 2026-07-28 specification, plus optional extensions.
+# ==============================================================================
+
+server:
+  # ----------------------------------------------------------------------------
+  # 1. Deprecated in 2026-07-28: Elicitation & Sampling (Replaced by SEP-2322 MRTR)
+  # ----------------------------------------------------------------------------
+  - tools-call-elicitation
+  - tools-call-sampling
+  - elicitation-sep1034-defaults
+  - elicitation-sep1330-enums
+
+  # ----------------------------------------------------------------------------
+  # 2. Deprecated in 2026-07-28: Server Utilities & Handshake Subscriptions
+  # ----------------------------------------------------------------------------
+  # Replaced by per-request `_meta['io.modelcontextprotocol/logLevel']`
+  - logging-set-level
+
+  # Deprecated in 2026-07-28: Replaced by modern `subscriptions/listen` SSE stream
+  - resources-subscribe
+  - resources-unsubscribe
+
+  # SEP-2575 forbids unrequested logging notifications during tool calls
+  - tools-call-with-logging
+
+  # ----------------------------------------------------------------------------
+  # 3. Optional Protocol Extensions (SEP-1730: Not required for any tier)
+  # ----------------------------------------------------------------------------
+  # SEP-2663: io.modelcontextprotocol/tasks
+  - tasks-lifecycle
+  - tasks-capability-negotiation
+  - tasks-wire-fields
+  - tasks-request-state-removal
+  - tasks-mrtr-input
+  - tasks-request-headers
+  - tasks-dispatch-and-envelope
+  - tasks-required-task-error
+  - tasks-mrtr-composition
+
+  # SEP-2640: io.modelcontextprotocol/skills
+  - skills-directory
+  - skills-enumeration
+  - skills-manifest
+
+  # ----------------------------------------------------------------------------
+  # 4. Pending Referee Scenarios (Harness tests unverified on reference fixture)
+  # ----------------------------------------------------------------------------
+  - json-schema-2020-12
+  - server-sse-polling
+  - http-header-validation
+  - http-custom-header-server-validation
+
+client:
+  # ----------------------------------------------------------------------------
+  # Legacy Client Elicitation & Transport Retry
+  # ----------------------------------------------------------------------------
+  - elicitation-sep1034-client-defaults
+  - sse-retry
+
+  # ----------------------------------------------------------------------------
+  # Optional OAuth / Authentication Extensions
+  # ----------------------------------------------------------------------------
+  - auth/client-credentials-jwt
+  - auth/client-credentials-basic
+  - auth/enterprise-managed-authorization
+  - auth/dpop
+  - auth/dpop-nonce
+  - auth/wif-jwt-bearer
+  
