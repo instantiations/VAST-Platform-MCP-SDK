@@ -792,7 +792,7 @@ McpStreamableHttpTransport >> initialize [
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> isAllowedHost: aHostString [
-	"Answer whether aHostString matches the configured allowedHosts.
+	"Answer whether aHostString matches the configured allowedHosts, or localhost by default.
 
 	 Arguments:
 		aHostString - <String> or nil, HTTP Host header value.
@@ -801,15 +801,18 @@ McpStreamableHttpTransport >> isAllowedHost: aHostString [
 
 	| normalizedHost |
 
-	self allowedHosts isEmpty ifTrue: [^true].
-	(self allowedHosts includes: '*') ifTrue: [^true].
-	normalizedHost := aHostString ifNil: [''].
-	(self allowedHosts includes: normalizedHost) ifTrue: [^true].
-	(normalizedHost includes: $:)
-		ifTrue: [| hostWithoutPort |
-			hostWithoutPort := normalizedHost copyFrom: 1 to: (normalizedHost indexOf: $:) - 1.
-			(self allowedHosts includes: hostWithoutPort) ifTrue: [^true]].
-	^false
+	self allowedHosts notEmpty
+		ifTrue: [
+			(self allowedHosts includes: '*') ifTrue: [^true].
+			normalizedHost := aHostString ifNil: [''].
+			(self allowedHosts includes: normalizedHost) ifTrue: [^true].
+			(normalizedHost includes: $:)
+				ifTrue: [| hostWithoutPort |
+					hostWithoutPort := normalizedHost copyFrom: 1 to: (normalizedHost indexOf: $:) - 1.
+					(self allowedHosts includes: hostWithoutPort) ifTrue: [^true]].
+			^false].
+
+	^self isLocalhostHost: aHostString
 ]
 
 { #category : 'Validation',
@@ -824,8 +827,13 @@ McpStreamableHttpTransport >> isAllowedOrigin: origin [
 	 Answers:
 		<Boolean>."
 
-	allowedOrigins isEmpty ifTrue: [^false].
-	^allowedOrigins anySatisfy: [:allowedOrigin | allowedOrigin sameAs: origin]
+	origin ifNil: [^false].
+	(allowedOrigins notNil
+		and: [
+			allowedOrigins notEmpty
+				and: [allowedOrigins anySatisfy: [:allowedOrigin | allowedOrigin sameAs: origin]]])
+					ifTrue: [^true].
+	^self isLocalhostOrigin: origin
 ]
 
 { #category : 'Accessing',
@@ -840,6 +848,42 @@ McpStreamableHttpTransport >> isInitializeRequest: parsedRequest [
 
 	^(parsedRequest isKindOf: KeyedCollection)
 		and: [(parsedRequest at: 'method' ifAbsent: [nil]) = 'initialize']
+]
+
+{ #category : 'Validation',
+  #vaVisibility : 'private' }
+McpStreamableHttpTransport >> isLocalhostHost: aHostString [
+	"Answer whether aHostString represents a valid localhost host (with or without port)."
+
+	| host hostWithoutPort |
+
+	aHostString isString ifFalse: [^false].
+	host := aHostString trimBlanks asLowercase.
+	host isEmpty ifTrue: [^false].
+	(host beginsWithSubCollection: '[::1]')
+		ifTrue: [hostWithoutPort := '[::1]']
+		ifFalse: [
+			(host includes: $:)
+				ifTrue: [hostWithoutPort := host copyFrom: 1 to: (host indexOf: $:) - 1]
+				ifFalse: [hostWithoutPort := host]].
+	^#('localhost' '127.0.0.1' '[::1]' '::1') includes: hostWithoutPort
+]
+
+{ #category : 'Validation',
+  #vaVisibility : 'private' }
+McpStreamableHttpTransport >> isLocalhostOrigin: anOriginString [
+	"Answer whether anOriginString represents a valid localhost origin (HTTP or HTTPS)."
+
+	| origin idx hostport |
+
+	anOriginString isString ifFalse: [^false].
+	origin := anOriginString trimBlanks.
+	idx := origin indexOfSubCollection: '://' startingAt: 1.
+	idx = 0 ifTrue: [^false].
+	hostport := origin copyFrom: idx + 3 to: origin size.
+	(hostport includes: $/)
+		ifTrue: [hostport := hostport copyFrom: 1 to: (hostport indexOf: $/) - 1].
+	^self isLocalhostHost: hostport
 ]
 
 { #category : 'Session Management',
@@ -1431,7 +1475,7 @@ McpStreamableHttpTransport >> validateHeadersFor: aRequest [
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> validateHostFor: aRequest [
-	"Validate the Host header against the configured allowlist.
+	"Validate the Host header against the configured allowlist or localhost by default.
 
 	 Arguments:
 		aRequest - <SstHttpServletRequest>.
@@ -1440,7 +1484,6 @@ McpStreamableHttpTransport >> validateHostFor: aRequest [
 
 	| hostHeader |
 
-	self allowedHosts isEmpty ifTrue: [^nil].
 	hostHeader := aRequest getHeader: 'Host'.
 	hostHeader ifNil: [hostHeader := aRequest getHeader: 'host'].
 	(self isAllowedHost: hostHeader)
@@ -1594,13 +1637,13 @@ McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest parsedRequest
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest session: session [
-	"Require the protocol version negotiated for a server session.
+	"Validate that any supplied protocol version is supported by the server.
 
 	 Arguments:
 		aRequest - <SstHttpServletRequest>.
 		session - <McpStreamableHttpSession>.
 	 Answers:
-		<String> error response, or nil when the version matches."
+		<String> error response, or nil when the version is valid."
 
 	| protocolVersion |
 
