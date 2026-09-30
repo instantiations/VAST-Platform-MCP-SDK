@@ -196,7 +196,7 @@ McpConformanceServer >> registerCompletions [
 { #category : 'Configuration',
   #vaVisibility : 'private' }
 McpConformanceServer >> registerMrtrToolsOn: reg [
-	"Register all SEP-2322 MRTR (Multi-Round-Trip Request) tools."
+	"Register all SEP-2322 MRTR (Multi-Round-Trip Request) tools for both server and client testing."
 
 	reg registerTool: (
 		McpBlockTool new
@@ -549,6 +549,105 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 					ifFalse: [
 						EsOrderedDictionary with: 'content' -> (Array with: (
 							EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'No input required'))]];
+			yourself).
+
+	"Client-scenario fixtures (sep-2322-client-request-state)"
+	reg registerTool: (
+		McpBlockTool new
+			name: 'test_mrtr_echo_state';
+			description: 'MRTR client test: triggers flow with requestState';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:args :ctx | | responses |
+				responses := ctx ifNotNil: [:c | c inputResponses].
+				responses notNil
+					ifTrue: [
+						EsOrderedDictionary new
+							at: 'resultType' put: 'complete';
+							at: 'content' put: (Array with: (
+								EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'echo-state-ok'));
+							yourself]
+					ifFalse: [| req schema |
+						schema :=
+							EsOrderedDictionary new
+								at: 'type' put: 'object';
+								at: 'properties' put: (
+									EsOrderedDictionary with: 'confirmed' -> (
+										EsOrderedDictionary with: 'type' -> 'boolean'));
+								yourself.
+						req :=
+							EsOrderedDictionary new
+								at: 'method' put: 'elicitation/create';
+								at: 'params' put: (
+									EsOrderedDictionary
+										with: 'message' -> 'Please confirm to continue'
+										with: 'requestedSchema' -> schema);
+								yourself.
+						EsOrderedDictionary new
+							at: 'resultType' put: 'input_required';
+							at: 'inputRequests' put: (EsOrderedDictionary with: 'confirm' -> req);
+							at: 'requestState' put: 'test-echo-state-nonce';
+							yourself]];
+			yourself).
+
+	reg registerTool: (
+		McpBlockTool new
+			name: 'test_mrtr_no_state';
+			description: 'MRTR client test: triggers flow WITHOUT requestState';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:args :ctx | | responses |
+				responses := ctx ifNotNil: [:c | c inputResponses].
+				responses notNil
+					ifTrue: [
+						EsOrderedDictionary new
+							at: 'resultType' put: 'complete';
+							at: 'content' put: (Array with: (
+								EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'no-state-ok'));
+							yourself]
+					ifFalse: [| req schema |
+						schema :=
+							EsOrderedDictionary new
+								at: 'type' put: 'object';
+								at: 'properties' put: (
+									EsOrderedDictionary with: 'confirmed' -> (
+										EsOrderedDictionary with: 'type' -> 'boolean'));
+								yourself.
+						req :=
+							EsOrderedDictionary new
+								at: 'method' put: 'elicitation/create';
+								at: 'params' put: (
+									EsOrderedDictionary
+										with: 'message' -> 'Please confirm (no state)'
+										with: 'requestedSchema' -> schema);
+								yourself.
+						EsOrderedDictionary new
+							at: 'resultType' put: 'input_required';
+							at: 'inputRequests' put: (EsOrderedDictionary with: 'confirm' -> req);
+							yourself]];
+			yourself).
+
+	reg registerTool: (
+		McpBlockTool new
+			name: 'test_mrtr_unrelated';
+			description: 'MRTR client test: unrelated tool called between rounds';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:args |
+				EsOrderedDictionary new
+					at: 'resultType' put: 'complete';
+					at: 'content' put: (Array with: (
+						EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'unrelated-ok'));
+					yourself];
+			yourself).
+
+	reg registerTool: (
+		McpBlockTool new
+			name: 'test_mrtr_no_result_type';
+			description: 'MRTR client test: returns result without resultType';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:args |
+				EsOrderedDictionary with: 'content' -> (Array with: (
+					EsOrderedDictionary
+						with: 'type' -> 'text'
+						with: 'text' -> 'no-result-type-test-ok'))];
 			yourself)
 ]
 
@@ -766,7 +865,7 @@ McpConformanceServer >> registerResources [
 
 { #category : 'Configuration' }
 McpConformanceServer >> registerTools [
-	"Register all tools required by the MCP server conformance test suite."
+	"Register all tools required by the MCP server and client conformance test suites."
 
 	| reg |
 
@@ -924,7 +1023,74 @@ McpConformanceServer >> registerTools [
 						with: 'text' -> ('User response: ' , (args at: 'message' ifAbsent: ['']))))];
 			yourself).
 
+	reg registerTool: (
+		McpBlockTool new
+			name: 'test_client_elicitation_defaults';
+			description: 'Tool triggering client elicitation defaults';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:args :ctx | | responses |
+				responses := ctx ifNotNil: [:c | c inputResponses].
+				responses notNil
+					ifTrue: [
+						EsOrderedDictionary with: 'content' -> (Array with: (
+							EsOrderedDictionary
+								with: 'type' -> 'text'
+								with: 'text' -> 'elicitation-defaults-ok'))]
+					ifFalse: [| req schema |
+						schema :=
+							EsOrderedDictionary new
+								at: 'type' put: 'object';
+								at: 'properties' put: (
+									EsOrderedDictionary with: 'name' -> (
+										EsOrderedDictionary
+											with: 'type' -> 'string'
+											with: 'default' -> 'DefaultName'));
+								yourself.
+						req :=
+							EsOrderedDictionary new
+								at: 'method' put: 'elicitation/create';
+								at: 'params' put: (
+									EsOrderedDictionary
+										with: 'message' -> 'Please provide input'
+										with: 'requestedSchema' -> schema);
+								yourself.
+						EsOrderedDictionary new
+							at: 'resultType' put: 'input_required';
+							at: 'inputRequests' put: (EsOrderedDictionary with: 'elicit_input' -> req);
+							yourself]];
+			yourself).
+
+	reg registerTool: (
+		McpBlockTool new
+			name: 'json_schema_2020_12_tool';
+			description: 'Tool with 2020-12 schema';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: ['ok'];
+			yourself).
+
+	reg registerTool: (
+		McpBlockTool new
+			name: 'json_schema_echo';
+			description: 'Tool echoing schema';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			block: [:args |
+				EsOrderedDictionary with: 'content' -> (Array with: (
+					EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'schema-echoed'))];
+			yourself).
+
 	self registerMrtrToolsOn: reg
+]
+
+{ #category : 'Starting and Stopping' }
+McpConformanceServer >> restart [
+	"Stop and restart the server to re-register all tools, resources, and prompts.
+
+	 Answers:
+		<McpConformanceServer> the receiver."
+
+	self stop.
+	mcpServer := nil.
+	^self start
 ]
 
 { #category : 'Starting and Stopping' }
