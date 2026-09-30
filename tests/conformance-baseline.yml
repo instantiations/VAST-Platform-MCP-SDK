@@ -20,9 +20,6 @@ server:
   # Replaced by per-request `_meta['io.modelcontextprotocol/logLevel']`
   - logging-set-level
 
-  # Ping utility removed from modern specification
-  - ping
-
   # Deprecated in 2026-07-28: Replaced by modern `subscriptions/listen` SSE stream
   - resources-subscribe
   - resources-unsubscribe
