@@ -394,6 +394,24 @@ McpHttpServer >> requestContextFactory: aBlock [
 	^self
 ]
 
+{ #category : 'Configuration' }
+McpHttpServer >> servletConfig [
+
+	| appName |
+
+	appName := 'McpApp_' , self port printString.
+	^SstWebAppSpecification new
+		appName: appName;
+		contextPath: '/';
+		defineServlet: 'McpHttpServlet' as: 'mcpServlet';
+		addServletMap: self endpointPath forServletNamed: 'mcpServlet';
+		defineServlet: 'McpSseServlet' as: 'sseServlet';
+		addServletMap: self sseTransport sseEndpointPath forServletNamed: 'sseServlet';
+		addServletMap: self sseTransport endpointPath forServletNamed: 'sseServlet';
+		addServletMap: self sseTransport endpointPath , '/*' forServletNamed: 'sseServlet';
+		yourself
+]
+
 { #category : 'Accessing' }
 McpHttpServer >> sessionIdleTimeout [
 	"Answer the idle timeout in seconds; nil disables the limit.
@@ -462,27 +480,12 @@ McpHttpServer >> start [
 	 Answers:
 		<McpHttpServer> the receiver."
 
-	| config url candidateEngine handlerResult startupResult appName |
+	| config url candidateEngine handlerResult startupResult |
 
 	self isRunning ifTrue: [^self].
-	self mcpServer ifNil: [self error:
-		'MCP server must be configured before startup'].
+	self mcpServer ifNil: [self error: 'MCP server must be configured before startup'].
 	url := ('http://' , self host , ':' , self port printString) sstAsUrl.
-	appName := 'McpApp_' , self port printString.
-	config :=
-		SstWebAppSpecification new
-			appName: appName;
-			contextPath: '/';
-			defineServlet: 'McpHttpServlet' as: 'mcpServlet';
-			addServletMap: self endpointPath forServletNamed: 'mcpServlet';
-			defineServlet: 'McpSseServlet' as: 'sseServlet';
-			addServletMap: self sseTransport sseEndpointPath forServletNamed:
-				'sseServlet';
-			addServletMap: self sseTransport endpointPath forServletNamed:
-				'sseServlet';
-			addServletMap: self sseTransport endpointPath , '/*'
-				forServletNamed: 'sseServlet';
-			yourself.
+	config := self servletConfig.
 	config atContextParameter: 'mcpTransport' put: self transport.
 	config atContextParameter: 'sseTransport' put: self sseTransport.
 	candidateEngine :=
@@ -510,7 +513,6 @@ McpHttpServer >> start [
 	servletEngine := candidateEngine.
 	self transport startSessionMaintenance.
 	^self
-
 ]
 
 { #category : 'Resource Management' }

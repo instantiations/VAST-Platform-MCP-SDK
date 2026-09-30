@@ -818,7 +818,7 @@ McpStreamableHttpTransport >> isAllowedHost: aHostString [
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> isAllowedOrigin: origin [
-	"Answer whether an Origin matches the configured allowlist.
+	"Answer whether an Origin matches the configured allowlist or a valid localhost origin.
 
 	 HTTP Origin scheme and host names are case-insensitive.
 
@@ -1383,9 +1383,22 @@ McpStreamableHttpTransport >> validateAuthenticationFor: aRequest [
 	 Answers:
 		<String> or nil."
 
-	| authHeader token principal |
+	| authHeader token principal realm authenticateHeader requiredHeader invalidHeader |
 
 	(self authSettings isNil or: [self authSettings enabled not]) ifTrue: [^nil].
+
+	realm := self authSettings issuerUrl.
+	authenticateHeader := realm 
+		ifNil: ['Bearer'] 
+		ifNotNil: ['Bearer realm="', realm, '"'].
+		
+	requiredHeader := realm 
+		ifNil: ['Bearer error="invalid_token", error_description="Bearer token required"']
+		ifNotNil: [authenticateHeader, ', error="invalid_token", error_description="Bearer token required"'].
+		
+	invalidHeader := realm
+		ifNil: ['Bearer error="invalid_token", error_description="Invalid or expired token"']
+		ifNotNil: [authenticateHeader, ', error="invalid_token", error_description="Invalid or expired token"'].
 
 	authHeader := aRequest getHeader: 'Authorization'.
 	authHeader ifNil: [authHeader := aRequest getHeader: 'authorization'].
@@ -1393,8 +1406,7 @@ McpStreamableHttpTransport >> validateAuthenticationFor: aRequest [
 		ifTrue: [
 			aRequest header responseHeader
 				status: '401 Unauthorized';
-				at: 'WWW-Authenticate'
-					put: 'Bearer error="invalid_token", error_description="Bearer token required"';
+				at: 'WWW-Authenticate' put: requiredHeader;
 				contentLength: 0.
 			^''].
 
@@ -1403,8 +1415,7 @@ McpStreamableHttpTransport >> validateAuthenticationFor: aRequest [
 	principal ifNil: [
 		aRequest header responseHeader
 			status: '401 Unauthorized';
-			at: 'WWW-Authenticate'
-				put: 'Bearer error="invalid_token", error_description="Invalid or expired token"';
+			at: 'WWW-Authenticate' put: invalidHeader;
 			contentLength: 0.
 		^''].
 

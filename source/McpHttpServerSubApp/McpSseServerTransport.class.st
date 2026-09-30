@@ -772,9 +772,22 @@ McpSseServerTransport >> validateAuthenticationFor: aRequest [
 	 Answers:
 		<String> or nil."
 
-	| authHeader token principal |
+	| authHeader token principal realm authenticateHeader requiredHeader invalidHeader |
 
 	(self authSettings isNil or: [self authSettings enabled not]) ifTrue: [^nil].
+
+	realm := self authSettings issuerUrl.
+	authenticateHeader := realm 
+		ifNil: ['Bearer'] 
+		ifNotNil: ['Bearer realm="', realm, '"'].
+		
+	requiredHeader := realm 
+		ifNil: ['Bearer error="invalid_token", error_description="Bearer token required"']
+		ifNotNil: [authenticateHeader, ', error="invalid_token", error_description="Bearer token required"'].
+		
+	invalidHeader := realm
+		ifNil: ['Bearer error="invalid_token", error_description="Invalid or expired token"']
+		ifNotNil: [authenticateHeader, ', error="invalid_token", error_description="Invalid or expired token"'].
 
 	authHeader := aRequest getHeader: 'Authorization'.
 	authHeader ifNil: [authHeader := aRequest getHeader: 'authorization'].
@@ -782,8 +795,7 @@ McpSseServerTransport >> validateAuthenticationFor: aRequest [
 		ifTrue: [
 			aRequest header responseHeader
 				status: '401 Unauthorized';
-				at: 'WWW-Authenticate'
-					put: 'Bearer error="invalid_token", error_description="Bearer token required"';
+				at: 'WWW-Authenticate' put: requiredHeader;
 				contentLength: 0.
 			^''].
 
@@ -792,8 +804,7 @@ McpSseServerTransport >> validateAuthenticationFor: aRequest [
 	principal ifNil: [
 		aRequest header responseHeader
 			status: '401 Unauthorized';
-			at: 'WWW-Authenticate'
-				put: 'Bearer error="invalid_token", error_description="Invalid or expired token"';
+			at: 'WWW-Authenticate' put: invalidHeader;
 			contentLength: 0.
 		^''].
 
