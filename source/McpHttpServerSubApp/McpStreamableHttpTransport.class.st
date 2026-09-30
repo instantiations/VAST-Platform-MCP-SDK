@@ -20,16 +20,10 @@ Owned by `McpHttpServer`. Thread-safe concurrent request dispatching.
 "
 Class {
 	#name : 'McpStreamableHttpTransport',
-	#superclass : 'Object',
+	#superclass : 'McpHttpServerTransport',
 	#instVars : [
-		'dispatcher',
-		'allowedOrigins',
 		'sessions',
 		'sessionMutex',
-		'maximumRequestSize',
-		'requestContextFactory',
-		'allowedHosts',
-		'authSettings',
 		'sessionIdleTimeout',
 		'maxSessions',
 		'sessionClock',
@@ -70,101 +64,6 @@ McpStreamableHttpTransport >> acceptHeader: acceptHeader includesMediaType: requ
 		separator := mediaType indexOf: $;.
 		separator > 0 ifTrue: [mediaType := (mediaType copyFrom: 1 to: separator - 1) trimBlanks].
 		mediaType sameAs: requiredMediaType]
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> allowedHosts [
-	"Answer the set of allowed Host header values.
-
-	 Answers:
-		<Set> of <String>."
-
-	allowedHosts ifNil: [allowedHosts := Set new].
-	^allowedHosts copy
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> allowedHosts: aCollection [
-	"Set the allowed Host header values for DNS rebinding protection.
-
-	 Arguments:
-		aCollection - <Collection> of <String> hostnames or patterns.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	| newHosts |
-
-	newHosts := Set new.
-	aCollection do: [:each |
-		(each isString and: [each isEmpty not])
-			ifFalse: [self error: 'Allowed host must be a nonempty string'].
-		newHosts add: each copy].
-	allowedHosts := newHosts.
-	^self
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> allowedOrigins [
-	"Answer a deeply detached snapshot of allowed HTTP Origin values.
-
-	 Answers:
-		<Collection> of <String>."
-
-	| snapshot |
-
-	snapshot := Set new.
-	allowedOrigins do: [:origin | snapshot add: origin copy].
-	^snapshot
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> allowedOrigins: aCollection [
-	"Validate and retain a detached Origin allowlist.
-
-	 An empty collection denies every request that carries an Origin header.
-	 Requests without an Origin header remain valid for non-browser clients.
-
-	 Arguments:
-		aCollection - <Collection> of nonempty <String> origins.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	| snapshot |
-
-	(aCollection isCollection and: [aCollection isString not])
-		ifFalse: [self error: 'Allowed origins must be a collection'].
-	snapshot := Set new.
-	aCollection do: [:origin |
-		(origin isString and: [origin isEmpty not])
-			ifFalse: [self error: 'Each allowed origin must be a non-empty string'].
-		snapshot add: origin copy].
-	allowedOrigins := snapshot.
-	^self
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> authSettings [
-	"Answer the OAuth authentication settings, or nil.
-
-	 Answers:
-		<McpAuthSettings> or nil."
-
-	^authSettings
-]
-
-{ #category : 'Configuration' }
-McpStreamableHttpTransport >> authSettings: anAuthSettings [
-	"Set the OAuth authentication settings.
-
-	 Arguments:
-		anAuthSettings - <McpAuthSettings> or nil.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	anAuthSettings ifNotNil: [anAuthSettings validateConfiguration].
-	authSettings := anAuthSettings.
-	^self
-
 ]
 
 { #category : 'Resource Management' }
@@ -269,32 +168,6 @@ McpStreamableHttpTransport >> decodeHeaderValue: aHeaderString [
 	b64 := aHeaderString copyFrom: 10 to: aHeaderString size - 2.
 	payloadBytes := [Base64Coder current decodeAsByteArray: b64] on: Error do: [:e | ^aHeaderString].
 	^[(UnicodeString utf8: payloadBytes) asString] on: Error do: [:e | payloadBytes asString]
-]
-
-{ #category : 'Dispatching' }
-McpStreamableHttpTransport >> dispatcher [
-	"Answer the configured JSON-RPC dispatcher.
-
-	 Answers:
-		<McpJsonRpcDispatcher>."
-
-	dispatcher ifNil: [self error: 'MCP HTTP dispatcher is not configured'].
-	^dispatcher
-]
-
-{ #category : 'Dispatching' }
-McpStreamableHttpTransport >> dispatcher: aDispatcher [
-	"Set the JSON-RPC dispatcher used for HTTP requests.
-
-	 Arguments:
-		aDispatcher - <McpJsonRpcDispatcher> configured dispatcher.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	(aDispatcher isKindOf: McpJsonRpcDispatcher)
-		ifFalse: [self error: 'MCP HTTP dispatcher must be an McpJsonRpcDispatcher'].
-	dispatcher := aDispatcher.
-	^self
 ]
 
 { #category : 'Formatting',
@@ -789,53 +662,6 @@ McpStreamableHttpTransport >> initialize [
 
 ]
 
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> isAllowedHost: aHostString [
-	"Answer whether aHostString matches the configured allowedHosts, or localhost by default.
-
-	 Arguments:
-		aHostString - <String> or nil, HTTP Host header value.
-	 Answers:
-		<Boolean>."
-
-	| normalizedHost |
-
-	self allowedHosts notEmpty
-		ifTrue: [
-			(self allowedHosts includes: '*') ifTrue: [^true].
-			normalizedHost := aHostString ifNil: [''].
-			(self allowedHosts includes: normalizedHost) ifTrue: [^true].
-			(normalizedHost includes: $:)
-				ifTrue: [| hostWithoutPort |
-					hostWithoutPort := normalizedHost copyFrom: 1 to: (normalizedHost indexOf: $:) - 1.
-					(self allowedHosts includes: hostWithoutPort) ifTrue: [^true]].
-			^false].
-
-	^self isLocalhostHost: aHostString
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> isAllowedOrigin: origin [
-	"Answer whether an Origin matches the configured allowlist or a valid localhost origin.
-
-	 HTTP Origin scheme and host names are case-insensitive.
-
-	 Arguments:
-		origin - <String> request Origin value.
-	 Answers:
-		<Boolean>."
-
-	origin ifNil: [^false].
-	(allowedOrigins notNil
-		and: [
-			allowedOrigins notEmpty
-				and: [allowedOrigins anySatisfy: [:allowedOrigin | allowedOrigin sameAs: origin]]])
-					ifTrue: [^true].
-	^self isLocalhostOrigin: origin
-]
-
 { #category : 'Accessing',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> isInitializeRequest: parsedRequest [
@@ -848,42 +674,6 @@ McpStreamableHttpTransport >> isInitializeRequest: parsedRequest [
 
 	^(parsedRequest isKindOf: KeyedCollection)
 		and: [(parsedRequest at: 'method' ifAbsent: [nil]) = 'initialize']
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> isLocalhostHost: aHostString [
-	"Answer whether aHostString represents a valid localhost host (with or without port)."
-
-	| host hostWithoutPort |
-
-	aHostString isString ifFalse: [^false].
-	host := aHostString trimBlanks asLowercase.
-	host isEmpty ifTrue: [^false].
-	(host beginsWithSubCollection: '[::1]')
-		ifTrue: [hostWithoutPort := '[::1]']
-		ifFalse: [
-			(host includes: $:)
-				ifTrue: [hostWithoutPort := host copyFrom: 1 to: (host indexOf: $:) - 1]
-				ifFalse: [hostWithoutPort := host]].
-	^#('localhost' '127.0.0.1' '[::1]' '::1') includes: hostWithoutPort
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> isLocalhostOrigin: anOriginString [
-	"Answer whether anOriginString represents a valid localhost origin (HTTP or HTTPS)."
-
-	| origin idx hostport |
-
-	anOriginString isString ifFalse: [^false].
-	origin := anOriginString trimBlanks.
-	idx := origin indexOfSubCollection: '://' startingAt: 1.
-	idx = 0 ifTrue: [^false].
-	hostport := origin copyFrom: idx + 3 to: origin size.
-	(hostport includes: $/)
-		ifTrue: [hostport := hostport copyFrom: 1 to: (hostport indexOf: $/) - 1].
-	^self isLocalhostHost: hostport
 ]
 
 { #category : 'Session Management',
@@ -923,31 +713,6 @@ McpStreamableHttpTransport >> maxSessions: limit [
 		ifFalse: [self error: 'Invalid maxSessions'].
 	sessionMutex critical: [maxSessions := limit]
 
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> maximumRequestSize [
-	"Answer the maximum accepted JSON request size in bytes.
-
-	 Answers:
-		<Integer>."
-
-	^maximumRequestSize
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> maximumRequestSize: byteCount [
-	"Set the maximum accepted JSON request size in bytes.
-
-	 Arguments:
-		byteCount - <Integer> positive byte count.
-	 Answers:
-		<McpStreamableHttpTransport>."
-
-	byteCount isInteger ifFalse: [self error: 'Maximum request size must be an integer'].
-	byteCount > 0 ifFalse: [self error: 'Maximum request size must be positive'].
-	maximumRequestSize := byteCount.
-	^self
 ]
 
 { #category : 'Session Management',
@@ -1027,31 +792,6 @@ McpStreamableHttpTransport >> removeSessionNamed: sessionId [
 		<McpStreamableHttpSession> or nil."
 
 	^sessionMutex critical: [sessions removeKey: sessionId ifAbsent: [nil]]
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> requestContextFactory [
-	"Answer the optional authenticated request-context factory.
-
-	 Answers:
-		<Block> accepting request and session, or nil."
-
-	^requestContextFactory
-]
-
-{ #category : 'Accessing' }
-McpStreamableHttpTransport >> requestContextFactory: aBlock [
-	"Set the optional authenticated request-context factory.
-
-	 Arguments:
-		aBlock - <Block> accepting request and session, or nil.
-	 Answers:
-		<McpStreamableHttpTransport> the receiver."
-
-	(aBlock notNil and: [aBlock isBlock not or: [aBlock numArgs ~= 2]])
-		ifTrue: [self error: 'MCP request-context factory must accept request and session'].
-	requestContextFactory := aBlock.
-	^self
 ]
 
 { #category : 'Accessing',
@@ -1374,56 +1114,6 @@ McpStreamableHttpTransport >> streamToolCallWithProgress: parsedRequest on: conn
 
 { #category : 'Validation',
   #vaVisibility : 'private' }
-McpStreamableHttpTransport >> validateAuthenticationFor: aRequest [
-	"Enforce Bearer authentication when authSettings is configured and enabled.
-	 Answers an error response string, or nil when valid.
-
-	 Arguments:
-		aRequest - <SstHttpServletRequest>.
-	 Answers:
-		<String> or nil."
-
-	| authHeader token principal realm authenticateHeader requiredHeader invalidHeader |
-
-	(self authSettings isNil or: [self authSettings enabled not]) ifTrue: [^nil].
-
-	realm := self authSettings issuerUrl.
-	authenticateHeader := realm 
-		ifNil: ['Bearer'] 
-		ifNotNil: ['Bearer realm="', realm, '"'].
-		
-	requiredHeader := realm 
-		ifNil: ['Bearer error="invalid_token", error_description="Bearer token required"']
-		ifNotNil: [authenticateHeader, ', error="invalid_token", error_description="Bearer token required"'].
-		
-	invalidHeader := realm
-		ifNil: ['Bearer error="invalid_token", error_description="Invalid or expired token"']
-		ifNotNil: [authenticateHeader, ', error="invalid_token", error_description="Invalid or expired token"'].
-
-	authHeader := aRequest getHeader: 'Authorization'.
-	authHeader ifNil: [authHeader := aRequest getHeader: 'authorization'].
-	(authHeader isNil or: [(authHeader beginsWithSubCollection: 'Bearer ') not])
-		ifTrue: [
-			aRequest header responseHeader
-				status: '401 Unauthorized';
-				at: 'WWW-Authenticate' put: requiredHeader;
-				contentLength: 0.
-			^''].
-
-	token := (authHeader copyFrom: 8 to: authHeader size) trimBlanks.
-	principal := self authSettings validateToken: token.
-	principal ifNil: [
-		aRequest header responseHeader
-			status: '401 Unauthorized';
-			at: 'WWW-Authenticate' put: invalidHeader;
-			contentLength: 0.
-		^''].
-
-	^nil
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
 McpStreamableHttpTransport >> validateHeadersFor: aRequest [
 	"Validate Streamable HTTP headers required for a POST request.
 
@@ -1478,29 +1168,6 @@ McpStreamableHttpTransport >> validateHeadersFor: aRequest [
 		ifFalse: [
 			aRequest header responseHeader
 				status: '400 Bad Request';
-				contentLength: 0.
-			^''].
-	^nil
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> validateHostFor: aRequest [
-	"Validate the Host header against the configured allowlist or localhost by default.
-
-	 Arguments:
-		aRequest - <SstHttpServletRequest>.
-	 Answers:
-		<String> error response, or nil when the host is valid."
-
-	| hostHeader |
-
-	hostHeader := aRequest getHeader: 'Host'.
-	hostHeader ifNil: [hostHeader := aRequest getHeader: 'host'].
-	(self isAllowedHost: hostHeader)
-		ifFalse: [
-			aRequest header responseHeader
-				status: '403 Forbidden';
 				contentLength: 0.
 			^''].
 	^nil
@@ -1584,29 +1251,6 @@ McpStreamableHttpTransport >> validateMcpParamHeadersFor: aRequest message: pars
 										formatHeaderMismatchErrorFor: aRequest
 										message: parsedRequest
 										header: headerName]]]]].
-	^nil
-]
-
-{ #category : 'Validation',
-  #vaVisibility : 'private' }
-McpStreamableHttpTransport >> validateOriginFor: aRequest [
-	"Validate the optional Origin header against the configured allowlist.
-
-	 Arguments:
-		aRequest - <SstHttpServletRequest>.
-	 Answers:
-		<String> error response, or nil when the origin is valid."
-
-	| origin |
-
-	origin := aRequest getHeader: 'Origin'.
-	origin ifNotNil: [
-		(self isAllowedOrigin: origin)
-			ifFalse: [
-				aRequest header responseHeader
-					status: '403 Forbidden';
-					contentLength: 0.
-				^'']].
 	^nil
 ]
 
