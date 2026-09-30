@@ -18,45 +18,64 @@ Class {
 { #category : 'Private',
   #vaVisibility : 'private' }
 McpOAuth2ClientTransport >> acquireTokenForResourceMetadata: resourceMetadataUrl [
-	| resourceResponse resourceData authServers authServer issuerUri path discoveryPath discoveryUrl discoveryResponse endpoints authEndpoint tokenEndpoint grant server handler result redirectUri authorizationUrl completionSemaphore |
-	
+	| resourceResponse resourceData authServers authServer issuerUri path discoveryPath discoveryUrl discoveryResponse endpoints authEndpoint tokenEndpoint grant server handler result redirectUri authorizationUrl completionSemaphore resScheme discScheme grantTypes |
+
 	"1. Resource Metadata Discovery"
-	resourceResponse := (SstHttpClient  forTransportScheme: 'httpsl') get: resourceMetadataUrl sstAsUrl typed: nil using: nil withHeaders: nil.
+	resScheme := resourceMetadataUrl sstAsUrl localEndpointUrl transport.
+	resourceResponse := (SstHttpClient forTransportScheme: resScheme) get: resourceMetadataUrl sstAsUrl typed: nil using: nil withHeaders: nil.
 	resourceResponse isSstError ifTrue: [self error: 'Failed to fetch resource metadata'].
-	resourceResponse header statusCode >= 400 ifTrue: [self error: 'Failed to fetch resource metadata: ', resourceResponse header status].
+	resourceResponse header statusCode >= 400 ifTrue: [self error: 'Failed to fetch resource metadata: ' , resourceResponse header status].
 	resourceData := McpJSONReader fromString: resourceResponse contents asString.
 	authServers := resourceData at: 'authorization_servers' ifAbsent: [self error: 'Missing authorization_servers in resource metadata'].
 	authServers isEmpty ifTrue: [self error: 'No authorization servers found'].
 	authServer := authServers first.
-	
+
 	"2. Authorization Server Discovery"
 	issuerUri := authServer sstAsUrl.
 	path := issuerUri path.
 	(path isNil or: [path = '/']) ifTrue: [path := ''].
-	discoveryPath := '/.well-known/oauth-authorization-server', path.
-	discoveryUrl := (issuerUri scheme, '://', issuerUri hostport, discoveryPath) sstAsUrl.
-	
-	discoveryResponse := (SstHttpClient  forTransportScheme: 'httpsl') get: discoveryUrl typed: nil using: nil withHeaders: nil.
+	discoveryPath := '/.well-known/oauth-authorization-server' , path.
+	discoveryUrl := (issuerUri scheme , '://' , issuerUri hostport , discoveryPath) sstAsUrl.
+	discScheme := discoveryUrl localEndpointUrl transport.
+
+	discoveryResponse := (SstHttpClient forTransportScheme: discScheme) get: discoveryUrl typed: nil using: nil withHeaders: nil.
 	discoveryResponse isSstError ifTrue: [self error: 'Failed to discover OAuth endpoints'].
-	discoveryResponse header statusCode >= 400 ifTrue: [self error: 'Failed to discover OAuth endpoints: ', discoveryResponse header status].
+	discoveryResponse header statusCode >= 400 ifTrue: [self error: 'Failed to discover OAuth endpoints: ' , discoveryResponse header status].
 	endpoints := McpJSONReader fromString: discoveryResponse contents asString.
-	authEndpoint := endpoints at: 'authorization_endpoint' ifAbsent: [self error: 'Missing authorization_endpoint'].
+	authEndpoint := endpoints at: 'authorization_endpoint' ifAbsent: [nil].
 	tokenEndpoint := endpoints at: 'token_endpoint' ifAbsent: [self error: 'Missing token_endpoint'].
-	
-	"3. Setup Flow"
-	redirectUri := 'http://localhost:', self localHttpServerPort asString, '/callback'.
+	grantTypes := endpoints at: 'grant_types_supported' ifAbsent: [nil].
+
+	"3. Direct Token Request via Client Credentials if clientSecret is available and supported"
+	(self clientSecret notNil and: [
+		self clientId notNil and: [
+			grantTypes notNil
+				ifTrue: [grantTypes includes: 'client_credentials']
+				ifFalse: [authEndpoint isNil]]])
+		ifTrue: [| oauthClient |
+			grant := SstOAuth2ClientCredentialsGrant newWithClientId: self clientId tokenUrl: tokenEndpoint sstAsUrl.
+			grant clientSecret: self clientSecret.
+			self scope ifNotNil: [:s | grant scope: s].
+			oauthClient := grant createClientWithTransportScheme: tokenEndpoint sstAsUrl localEndpointUrl transport.
+			oauthCredentials := oauthClient oauth2Credentials.
+			self bearerToken: oauthCredentials accessToken.
+			^self].
+
+	"4. Interactive Authorization Code Flow"
+	authEndpoint ifNil: [self error: 'Missing authorization_endpoint for code grant'].
+	redirectUri := 'http://localhost:' , self localHttpServerPort asString , '/callback'.
 	grant := SstOAuth2AuthorizationCodeGrant newWithClientId: self clientId authorizationBaseUrl: authEndpoint sstAsUrl tokenUrl: tokenEndpoint sstAsUrl.
 	grant scope: self scope; clientSecret: self clientSecret.
-	
-	"4. Setup HTTP Listener"
+
 	completionSemaphore := Semaphore new.
 	server := SstBasicServer new.
 	handler := DirectedMessage receiver: [:req :res |
 		(req header url beginsWithSubCollection: '/callback') ifTrue: [
 			[
 				| oauthClient |
-				oauthClient := grant createClientFromAuthorizationResponseUrl: (redirectUri, req header url) sstAsUrl.
+				oauthClient := grant createClientFromAuthorizationResponseUrl: (redirectUri , req header url) sstAsUrl.
 				oauthCredentials := oauthClient oauth2Credentials.
+				self bearerToken: oauthCredentials accessToken.
 				completionSemaphore signal.
 				(Delay forSeconds: 1) wait. 
 				server shutDown
@@ -64,14 +83,13 @@ McpOAuth2ClientTransport >> acquireTokenForResourceMetadata: resourceMetadataUrl
 		].
 		res header: (SstHttpResponseHeader new status: SstHttpConstants::HttpOk; contentLength: 12; yourself); contents: 'Success'.
 	] selector: #value:value:.
-	(result := server addHandlerUrl: 'http://:', self localHttpServerPort asString) isSstError ifTrue: [result raise].
+	(result := server addHandlerUrl: 'http://:' , self localHttpServerPort asString) isSstError ifTrue: [result raise].
 	server requestHandler: handler.
 	(result := server startUp) isSstError ifTrue: [result raise].
-	
-	"5. Launch Browser and Wait"
+
 	authorizationUrl := grant authorizationUrlWithRedirectTo: redirectUri sstAsUrl state: self randomSecret.
 	OsProcessStarter startShell: { 'start'. '"MCP OAuth2 Login"'. '"%1"' bindWith: authorizationUrl asString }.
-	completionSemaphore wait.
+	completionSemaphore wait
 ]
 
 { #category : 'Accessing' }

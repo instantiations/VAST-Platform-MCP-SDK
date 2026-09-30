@@ -1,4 +1,4 @@
 Package {
 	#name : 'McpHttpOAuth2App',
-	#vaPrerequisites : ['SstOAuth2App','McpHttpApp']
+	#vaPrerequisites : ['McpHttpApp','SstOAuth2App']
 }
