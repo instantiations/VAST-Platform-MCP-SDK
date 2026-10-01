@@ -163,7 +163,7 @@ McpHttpClientTransport >> buildHeaders [
 			keysAndValuesDo: [:name :value | self putHeaderName: name value: value into: headers]].
 	token := self bearerToken.
 	token ifNil: [
-		self tokenProvider ifNotNil: [:provider | token := [provider value] on: Error do: [:e | nil]]].
+		self tokenProvider ifNotNil: [:provider | token := provider value]].
 	token ifNotNil: [self putHeaderName: 'Authorization' value: 'Bearer ' , token into: headers].
 	self putHeaderName: 'Accept' value: 'application/json, text/event-stream' into: headers.
 	sessionID ifNotNil: [self putHeaderName: 'MCP-Session-ID' value: sessionID into: headers].
@@ -456,8 +456,7 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 												do: [:parseErr | nil].
 								resultDictionary ifNotNil: [
 									^self validatedResultFrom: resultDictionary id: requestId]].
-						responseOrError isSstError ifTrue: [responseOrError raise].
-						(SstError new errorObject: response; messageText: 'HTTP Error: ' , response header status) raise]]
+						self error: 'HTTP Error: ' , response header status]]
 			ifFalse: [done := true]].
 	contentType ifNil: [self error: 'Missing Content-Type'].
 	resultDictionary := self parseResponse: response contents contentType: contentType id: requestId.

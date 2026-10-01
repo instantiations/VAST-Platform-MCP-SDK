@@ -304,8 +304,11 @@ McpConformanceClient >> run [
 			ifTrue: [result := self runRequestMetadataScenario].
 		name = 'sep-2322-client-request-state'
 			ifTrue: [result := self runMrtrClientScenario].
-		name = 'elicitation-defaults'
-			ifTrue: [result := self runElicitationDefaultsScenario].
+		(name = 'elicitation-defaults'
+			or: [name = 'elicitation-sep1034-client-defaults'])
+				ifTrue: [result := self runElicitationDefaultsScenario].
+		((name indexOfSubCollection: 'auth/' startingAt: 1) = 1)
+			ifTrue: [result := self runAuthScenario: name].
 		result ifNil: [self error: 'Unknown conformance scenario: ' , name].
 		self log: 'Scenario ' , name , ' COMPLETED successfully.'.
 		^result]
