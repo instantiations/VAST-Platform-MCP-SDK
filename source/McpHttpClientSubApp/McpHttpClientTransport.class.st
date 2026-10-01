@@ -163,7 +163,7 @@ McpHttpClientTransport >> buildHeaders [
 			keysAndValuesDo: [:name :value | self putHeaderName: name value: value into: headers]].
 	token := self bearerToken.
 	token ifNil: [
-		self tokenProvider ifNotNil: [:provider | token := [provider value] on: Error do: [:e | nil]]].
+		self tokenProvider ifNotNil: [:provider | token := provider value]].
 	token ifNotNil: [self putHeaderName: 'Authorization' value: 'Bearer ' , token into: headers].
 	self putHeaderName: 'Accept' value: 'application/json, text/event-stream' into: headers.
 	sessionID ifNotNil: [self putHeaderName: 'MCP-Session-ID' value: sessionID into: headers].
@@ -377,8 +377,7 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 	 Answers:
 		<Object> validated JSON-RPC result."
 
-	| jsonString responseOrError response resultDictionary result contentType
-		allowRetry done headers
+	| jsonString responseOrError response resultDictionary result contentType allowRetry done headers
 	  isInitialize mediaType isJson |
 
 	(requestDictionary isKindOf: KeyedCollection)
@@ -388,40 +387,33 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 	url ifNil: [self error: 'MCP HTTP endpoint is not configured'].
 
 	((requestDictionary at: 'method' ifAbsent: [nil]) = 'subscriptions/listen')
-		ifTrue: [^self doSendListenRequest: requestDictionary id: requestId
-			headers: requestHeaders].
+		ifTrue: [^self doSendListenRequest: requestDictionary id: requestId headers: requestHeaders].
 
-	isInitialize := (requestDictionary at: 'method' ifAbsent: [nil]) =
-		'initialize'.
+	isInitialize := (requestDictionary at: 'method' ifAbsent: [nil]) = 'initialize'.
 	jsonString :=
-		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut:
-			requestDictionary].
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: requestDictionary].
 	allowRetry := true.
 	done := false.
 	[done] whileFalse: [
 		headers := self headersIncluding: requestHeaders.
-		(self client notNil and: [McpProtocolVersion isModern: self client
-			protocolVersion])
+		(self client notNil and: [McpProtocolVersion isModern: self client protocolVersion])
 			ifTrue: [| method params |
 				method := requestDictionary at: 'method' ifAbsent: [nil].
 				method ifNotNil: [
-					self putHeaderName: 'Mcp-Method' value: method into:
-				headers.
+					self putHeaderName: 'Mcp-Method' value: method into: headers.
 					params := requestDictionary at: 'params' ifAbsent: [nil].
 					(params isKindOf: KeyedCollection)
 						ifTrue: [
 							(#('tools/call' 'prompts/get') includes: method)
 								ifTrue: [
-									(params at: 'name' ifAbsent: [nil])
-				ifNotNil: [:n |
+									(params at: 'name' ifAbsent: [nil]) ifNotNil: [:n |
 										self
 											putHeaderName: 'Mcp-Name'
 											value: (self encodeHeaderValue: n)
 											into: headers]].
 							method = 'resources/read'
 								ifTrue: [
-									(params at: 'uri' ifAbsent: [nil]) ifNotNil:
-				[:u |
+									(params at: 'uri' ifAbsent: [nil]) ifNotNil: [:u |
 										self
 											putHeaderName: 'Mcp-Name'
 											value: (self encodeHeaderValue: u)
@@ -438,20 +430,17 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 		(response header statusCode between: 300 and: 399)
 			ifTrue: [self error: 'MCP HTTP redirect was not followed'].
 		contentType := response header contentType.
-		mediaType := contentType ifNotNil: [self baseMediaTypeFrom:
-			contentType].
+		mediaType := contentType ifNotNil: [self baseMediaTypeFrom: contentType].
 		isJson := mediaType notNil and: [mediaType sameAs: 'application/json'].
 		response header statusCode >= 400
 			ifTrue: [
-				(response header statusCode = 404 and: [sessionID notNil and:
-				[allowRetry]])
+				(response header statusCode = 404 and: [sessionID notNil and: [allowRetry]])
 					ifTrue: [
 						sessionID := nil.
 						allowRetry := false.
 						isInitialize
 							ifFalse: [
-								self client ifNil: [self error:
-				'MCP transport has no owning client'].
+								self client ifNil: [self error: 'MCP transport has no owning client'].
 								self client markDisconnected.
 								self client connectWithHeaders: requestHeaders]]
 					ifFalse: [
@@ -466,17 +455,14 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 												on: Error
 												do: [:parseErr | nil].
 								resultDictionary ifNotNil: [
-									^self validatedResultFrom: resultDictionary
-				id: requestId]].
+									^self validatedResultFrom: resultDictionary id: requestId]].
 						self error: 'HTTP Error: ' , response header status]]
 			ifFalse: [done := true]].
 	contentType ifNil: [self error: 'Missing Content-Type'].
-	resultDictionary := self parseResponse: response contents contentType:
-		contentType id: requestId.
+	resultDictionary := self parseResponse: response contents contentType: contentType id: requestId.
 	result := self validatedResultFrom: resultDictionary id: requestId.
 	isInitialize ifTrue: [self captureSessionFrom: response].
 	^result
-
 ]
 
 { #category : 'Header Construction',

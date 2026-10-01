@@ -141,7 +141,7 @@ TestMcpVastInterop >> assertCapabilityInteropUnicodeAndCorrelation: client [
 			equals: (text , index printString) asUtf8Bytes]
 ]
 
-{ #category : 'Not categorized',
+{ #category : 'Private',
   #vaVisibility : 'private' }
 TestMcpVastInterop >> assertStdioExchangeFor: client methods: expectedMethods [
 	"Check a complete exchange containing only valid outgoing JSON.
@@ -165,7 +165,7 @@ TestMcpVastInterop >> assertStdioExchangeFor: client methods: expectedMethods [
 
 ]
 
-{ #category : 'Not categorized',
+{ #category : 'Private',
   #vaVisibility : 'private' }
 TestMcpVastInterop >> assertStdioResponses: responses forRequests: requests [
 	"Require one uniquely correlated response per request with an ID.
