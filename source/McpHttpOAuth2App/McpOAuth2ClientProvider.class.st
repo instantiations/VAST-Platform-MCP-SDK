@@ -45,14 +45,15 @@ McpOAuth2ClientProvider >> acquireTokens [
 	| resourceData authServers authServer endpoints tokenEndpoint authEndpoint grantTypes |
 
 	resourceData := self discoverProtectedResourceMetadata.
-	authServers := resourceData at: 'authorization_servers'
-		ifAbsent: [self error: 'Missing authorization_servers in resource metadata'].
+	authServers :=
+		resourceData
+			at: 'authorization_servers'
+			ifAbsent: [self error: 'Missing authorization_servers in resource metadata'].
 	authServers isEmpty ifTrue: [self error: 'No authorization servers found'].
 	authServer := authServers first.
 
 	endpoints := self discoverAuthorizationServerMetadata: authServer.
-	tokenEndpoint := endpoints at: 'token_endpoint'
-		ifAbsent: [self error: 'Missing token_endpoint'].
+	tokenEndpoint := endpoints at: 'token_endpoint' ifAbsent: [self error: 'Missing token_endpoint'].
 	authEndpoint := endpoints at: 'authorization_endpoint' ifAbsent: [nil].
 	grantTypes := endpoints at: 'grant_types_supported' ifAbsent: [nil].
 
@@ -62,7 +63,7 @@ McpOAuth2ClientProvider >> acquireTokens [
 			grantTypes notNil
 				ifTrue: [grantTypes includes: 'client_credentials']
 				ifFalse: [authEndpoint isNil]]])
-		ifTrue: [^self acquireTokensViaClientCredentials: tokenEndpoint].
+					ifTrue: [^self acquireTokensViaClientCredentials: tokenEndpoint].
 
 	"Interactive authorization code grant"
 	^self acquireTokensViaAuthorizationCode: authEndpoint tokenEndpoint: tokenEndpoint
@@ -77,25 +78,33 @@ McpOAuth2ClientProvider >> acquireTokensViaAuthorizationCode: authEndpoint token
 
 	authEndpoint ifNil: [self error: 'Missing authorization_endpoint for authorization code grant'].
 	redirectUri := 'http://localhost:' , self callbackPort asString , '/callback'.
-	grant := SstOAuth2AuthorizationCodeGrant
-		newWithClientId: self clientId
-		authorizationBaseUrl: authEndpoint sstAsUrl
-		tokenUrl: tokenEndpoint sstAsUrl.
-	grant scope: self scope; clientSecret: self clientSecret.
+	grant :=
+		SstOAuth2AuthorizationCodeGrant
+			newWithClientId: self clientId
+			authorizationBaseUrl: authEndpoint sstAsUrl
+			tokenUrl: tokenEndpoint sstAsUrl.
+	grant
+		scope: self scope;
+		clientSecret: self clientSecret.
 
 	callbackServer := McpOAuth2CallbackServer new.
 	callbackServer port: self callbackPort.
 	[
 		callbackServer start.
-		authorizationUrl := grant authorizationUrlWithRedirectTo: redirectUri sstAsUrl state: self randomSecret.
+		authorizationUrl :=
+			grant authorizationUrlWithRedirectTo: redirectUri sstAsUrl state: self randomSecret.
 		self redirectHandler value: authorizationUrl.
-		callbackData := callbackServer waitForCallback.
-	] ensure: [
-		[(Delay forSeconds: 2) wait. callbackServer stop] fork].
+		callbackData := callbackServer waitForCallback]
+			ensure: [
+				[
+					(Delay forSeconds: 2) wait.
+					callbackServer stop]
+						fork].
 
-	oauthClient := grant
-		createClientFromAuthorizationResponseData: callbackData
-		withTransportScheme: tokenEndpoint sstAsUrl localEndpointUrl transport.
+	oauthClient :=
+		grant
+			createClientFromAuthorizationResponseData: callbackData
+			withTransportScheme: tokenEndpoint sstAsUrl localEndpointUrl transport.
 	credentials := oauthClient oauth2Credentials.
 	^credentials
 ]
@@ -107,12 +116,14 @@ McpOAuth2ClientProvider >> acquireTokensViaClientCredentials: tokenEndpoint [
 
 	| grant oauthClient |
 
-	grant := SstOAuth2ClientCredentialsGrant
-		newWithClientId: self clientId
-		tokenUrl: tokenEndpoint sstAsUrl.
+	grant :=
+		SstOAuth2ClientCredentialsGrant
+			newWithClientId: self clientId
+			tokenUrl: tokenEndpoint sstAsUrl.
 	grant clientSecret: self clientSecret.
 	self scope ifNotNil: [:s | grant scope: s].
-	oauthClient := grant createClientWithTransportScheme: tokenEndpoint sstAsUrl localEndpointUrl transport.
+	oauthClient :=
+		grant createClientWithTransportScheme: tokenEndpoint sstAsUrl localEndpointUrl transport.
 	credentials := oauthClient oauth2Credentials.
 	^credentials
 ]
@@ -341,16 +352,6 @@ McpOAuth2ClientProvider >> serverUrl: aStringOrUrl [
 		aStringOrUrl - <String | SstUrl>."
 
 	serverUrl := aStringOrUrl ifNotNil: [:u | u asString]
-]
-
-{ #category : 'Accessing' }
-McpOAuth2ClientProvider >> tokenStorage: aStorage [
-	"Set the token storage strategy.
-
-	 Arguments:
-		aStorage - <McpOAuth2TokenStorage>."
-
-	tokenStorage := aStorage
 ]
 
 { #category : 'Token Management' }

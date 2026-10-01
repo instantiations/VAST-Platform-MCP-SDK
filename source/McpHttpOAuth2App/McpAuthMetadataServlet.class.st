@@ -7,23 +7,27 @@ Class {
 { #category : 'Request Handling' }
 McpAuthMetadataServlet >> doGet: aRequest [
 	"Handle metadata requests for oauth endpoints."
+
 	| path authSettings meta json |
+
 	path := aRequest getRequestUri.
 	path ifNil: [path := ''].
 	authSettings := self transport authSettings.
 	authSettings ifNil: [
-		aRequest header responseHeader status: '404 Not Found'; contentLength: 0.
+		aRequest header responseHeader
+			status: '404 Not Found';
+			contentLength: 0.
 		^''].
-	(path indexOfSubCollection: '/oauth-authorization-server' startingAt: 1) > 0 ifTrue: [
-		meta := authSettings authorizationServerMetadata.
-	] ifFalse: [
-		(path indexOfSubCollection: '/oauth-protected-resource' startingAt: 1) > 0 ifTrue: [
-			meta := authSettings protectedResourceMetadata.
-		] ifFalse: [
-			aRequest header responseHeader status: '404 Not Found'; contentLength: 0.
-			^''
-		]
-	].
+	(path indexOfSubCollection: '/oauth-authorization-server' startingAt: 1) > 0
+		ifTrue: [meta := authSettings authorizationServerMetadata]
+		ifFalse: [
+			(path indexOfSubCollection: '/oauth-protected-resource' startingAt: 1) > 0
+				ifTrue: [meta := authSettings protectedResourceMetadata]
+				ifFalse: [
+					aRequest header responseHeader
+						status: '404 Not Found';
+						contentLength: 0.
+					^'']].
 	json := String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: meta].
 	aRequest header responseHeader
 		status: '200 OK';
