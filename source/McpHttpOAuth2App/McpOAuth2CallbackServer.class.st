@@ -5,7 +5,7 @@ Class {
 		'port',
 		'server',
 		'completionSemaphore',
-		'callbackData',
+		'callbackUrl',
 		'timeout'
 	],
 	#pools : [
@@ -23,13 +23,23 @@ McpOAuth2CallbackServer class >> new [
 ]
 
 { #category : 'Accessing' }
-McpOAuth2CallbackServer >> callbackData [
-	"Answer the dictionary containing the received query parameters.
+McpOAuth2CallbackServer >> callbackUrl [
+	"Answer the received callback SstUrl, or nil.
 
 	 Answers:
-		<Dictionary>."
+		<SstUrl> or nil."
 
-	^callbackData
+	^callbackUrl
+]
+
+{ #category : 'Accessing' }
+McpOAuth2CallbackServer >> callbackUrl: anSstUrl [
+	"Set the received callback SstUrl.
+
+	 Arguments:
+		anSstUrl - <SstUrl>."
+
+	callbackUrl := anSstUrl
 ]
 
 { #category : 'Accessing' }
@@ -44,25 +54,11 @@ McpOAuth2CallbackServer >> completionSemaphore [
 McpOAuth2CallbackServer >> handleRequest: req response: res [
 	"Handle incoming redirect request from the OAuth authorization server."
 
-	| url query params |
+	| url |
 
 	url := req header url.
 	(url beginsWithSubCollection: '/callback') ifTrue: [
-		query := (url indexOf: $?) > 0
-			ifTrue: [url copyFrom: (url indexOf: $?) + 1 to: url size]
-			ifFalse: [''].
-		params := Dictionary new.
-		(query splitOn: '&') do: [:part |
-			| key val |
-			key := part copyUpTo: $=.
-			val := (part indexOf: $=) > 0
-				ifTrue: [part copyFrom: (part indexOf: $=) + 1 to: part size]
-				ifFalse: [''].
-			key notEmpty ifTrue: [
-				params
-					at: (SstUrlUnicodeEncoder new decode: key useFormUrlEncoding: true)
-					put: (SstUrlUnicodeEncoder new decode: val useFormUrlEncoding: true)]].
-		callbackData := params.
+		callbackUrl := ('http://localhost:' , self port asString , url) sstAsUrl.
 		self completionSemaphore signal.
 		res header: (SstHttpResponseHeader new
 			status: SstHttpConstants::HttpOk;
@@ -87,8 +83,7 @@ McpOAuth2CallbackServer >> initialize [
 	super initialize.
 	port := 3030.
 	timeout := 300.
-	completionSemaphore := Semaphore new.
-	callbackData := Dictionary new
+	completionSemaphore := Semaphore new
 ]
 
 { #category : 'Testing' }
@@ -165,7 +160,7 @@ McpOAuth2CallbackServer >> timeout: anInteger [
 
 { #category : 'Lifecycle' }
 McpOAuth2CallbackServer >> waitForCallback [
-	"Wait for the OAuth callback and return the response data dictionary."
+	"Wait for the OAuth callback and return the response SstUrl."
 
 	| delay timedOut |
 
@@ -176,9 +171,5 @@ McpOAuth2CallbackServer >> waitForCallback [
 	timedOut ifTrue: [
 		self stop.
 		self error: 'Timeout waiting for OAuth callback'].
-	(self callbackData includesKey: 'error') ifTrue: [
-		| err |
-		err := self callbackData at: 'error_description' ifAbsent: [self callbackData at: 'error'].
-		self error: 'OAuth authorization error: ' , err].
-	^self callbackData
+	^self callbackUrl
 ]

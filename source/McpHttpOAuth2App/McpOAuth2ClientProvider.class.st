@@ -74,37 +74,30 @@ McpOAuth2ClientProvider >> acquireTokens [
 McpOAuth2ClientProvider >> acquireTokensViaAuthorizationCode: authEndpoint tokenEndpoint: tokenEndpoint [
 	"Acquire tokens using the interactive OAuth2 Authorization Code grant."
 
-	| redirectUri grant callbackServer authorizationUrl callbackData oauthClient |
+	| redirectUri grant callbackServer authorizationUrl callbackUrl oauthClient scheme |
 
 	authEndpoint ifNil: [self error: 'Missing authorization_endpoint for authorization code grant'].
 	redirectUri := 'http://localhost:' , self callbackPort asString , '/callback'.
-	grant :=
-		SstOAuth2AuthorizationCodeGrant
-			newWithClientId: self clientId
-			authorizationBaseUrl: authEndpoint sstAsUrl
-			tokenUrl: tokenEndpoint sstAsUrl.
-	grant
-		scope: self scope;
-		clientSecret: self clientSecret.
+	grant := SstOAuth2AuthorizationCodeGrant
+		newWithClientId: self clientId
+		authorizationBaseUrl: authEndpoint sstAsUrl
+		tokenUrl: tokenEndpoint sstAsUrl.
+	grant scope: self scope; clientSecret: self clientSecret.
 
 	callbackServer := McpOAuth2CallbackServer new.
 	callbackServer port: self callbackPort.
 	[
 		callbackServer start.
-		authorizationUrl :=
-			grant authorizationUrlWithRedirectTo: redirectUri sstAsUrl state: self randomSecret.
+		authorizationUrl := grant authorizationUrlWithRedirectTo: redirectUri sstAsUrl state: self randomSecret.
 		self redirectHandler value: authorizationUrl.
-		callbackData := callbackServer waitForCallback]
-			ensure: [
-				[
-					(Delay forSeconds: 2) wait.
-					callbackServer stop]
-						fork].
+		callbackUrl := callbackServer waitForCallback.
+	] ensure: [
+		[(Delay forSeconds: 2) wait. callbackServer stop] fork].
 
-	oauthClient :=
-		grant
-			createClientFromAuthorizationResponseData: callbackData
-			withTransportScheme: tokenEndpoint sstAsUrl localEndpointUrl transport.
+	scheme := tokenEndpoint sstAsUrl localEndpointUrl transport.
+	oauthClient := grant
+		createClientFromAuthorizationResponseUrl: callbackUrl
+		withTransportScheme: scheme.
 	credentials := oauthClient oauth2Credentials.
 	^credentials
 ]
