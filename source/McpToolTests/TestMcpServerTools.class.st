@@ -316,6 +316,45 @@ TestMcpServerTools >> testToolMayReturnInputRequiredResult [
 ]
 
 { #category : 'Protocol Operations' }
+TestMcpServerTools >> testToolWithArrayOutputSchemaReturnsArrayStructuredContent [
+	"Per MCP 2026-07-28 SEP-2106, structuredContent can be any JSON value including an array."
+
+	| tool outputSchema response result structured content users |
+
+	outputSchema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'array';
+			at: 'items' put: (
+				EsOrderedDictionary new
+					at: 'type' put: 'object';
+					at: 'properties' put: (
+						EsOrderedDictionary with: 'id' -> (EsOrderedDictionary with: 'type' -> 'string')
+							with: 'name' -> (EsOrderedDictionary with: 'type' -> 'string'));
+					at: 'required' put: #('id' 'name');
+					yourself);
+			yourself.
+	users := Array
+		with: (EsOrderedDictionary with: 'id' -> '1' with: 'name' -> 'Alice')
+		with: (EsOrderedDictionary with: 'id' -> '2' with: 'name' -> 'Bob').
+	tool := self toolNamed: 'users.list' block: [users copy].
+	tool outputSchema: outputSchema.
+	registry registerTool: tool.
+
+	response := dispatcher dispatch: (self toolCallRequestNamed: 'users.list' arguments: nil id: 10).
+	self assertSuccessfulResponse: response id: 10.
+	result := response at: 'result'.
+	self assert: (result at: 'isError') equals: false.
+	structured := result at: 'structuredContent'.
+	self assert: (structured isKindOf: SequenceableCollection).
+	self assert: (structured isKindOf: KeyedCollection) not.
+	self assert: structured size equals: 2.
+	self assert: (structured first at: 'name') equals: 'Alice'.
+	content := result at: 'content'.
+	self assert: content size equals: 1.
+	self assert: (content first at: 'type') equals: 'text'
+]
+
+{ #category : 'Protocol Operations' }
 TestMcpServerTools >> testToolWithOutputSchemaReturnsStructuredContent [
 	"A schema-backed tool returns matching structured and text content."
 

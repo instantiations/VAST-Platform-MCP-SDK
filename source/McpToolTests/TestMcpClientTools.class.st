@@ -460,6 +460,39 @@ TestMcpClientTools >> testToolListNotificationInvalidatesOutputSchema [
 
 ]
 
+{ #category : 'Testing' }
+TestMcpClientTools >> testToolWithArrayOutputSchemaAcceptsArrayStructuredContent [
+	"Per MCP 2026-07-28 SEP-2106, clients accept non-keyed structuredContent conforming to outputSchema."
+
+	| definition response result users outputSchema |
+
+	self connectWithToolsCapability.
+	outputSchema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'array';
+			at: 'items' put: (
+				EsOrderedDictionary new
+					at: 'type' put: 'object';
+					at: 'properties' put: (
+						EsOrderedDictionary with: 'id' -> (EsOrderedDictionary with: 'type' -> 'string'));
+					yourself);
+			yourself.
+	definition := self toolDefinitionNamed: 'list_users'.
+	definition at: 'outputSchema' put: outputSchema.
+	users := Array with: (EsOrderedDictionary with: 'id' -> 'user-1').
+
+	response := self textToolResult: 'Alice' isError: false.
+	response at: 'structuredContent' put: users.
+
+	transport enqueueResponse: response.
+	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> (Array with: definition)).
+
+	result := client callTool: 'list_users' arguments: nil.
+	self assert: (result at: 'isError') equals: false.
+	self assert: ((result at: 'structuredContent') isKindOf: SequenceableCollection).
+	self assert: ((result at: 'structuredContent') first at: 'id') equals: 'user-1'
+]
+
 { #category : 'Test Support',
   #vaVisibility : 'private' }
 TestMcpClientTools >> textToolResult: text isError: isError [

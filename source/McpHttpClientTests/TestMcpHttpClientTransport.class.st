@@ -298,6 +298,70 @@ TestMcpHttpClientTransport >> testBuildHeadersIncludesRequiredAcceptOnlyBeforeNe
 	self assert: (self headerNamed: 'MCP-Protocol-Version' in: headers) equals: nil
 ]
 
+{ #category : 'Protocol Operations' }
+TestMcpHttpClientTransport >> testCallToolEmitsMcpParamHeadersForAnnotatedParameters [
+	"Calling a tool with parameters annotated with x-mcp-header emits Mcp-Param-* HTTP headers."
+
+	| client toolSchema properties result post headers |
+
+	client := McpClient modern.
+	client transport: transport.
+	client priorDiscover: (
+		EsOrderedDictionary new
+			at: 'capabilities' put: (EsOrderedDictionary with: 'tools' -> EsOrderedDictionary new);
+			at: 'supportedVersions' put: #('2026-07-28');
+			yourself).
+	client connect.
+
+	properties :=
+		EsOrderedDictionary new
+			at: 'region'
+				put: (
+					EsOrderedDictionary new
+						at: 'type' put: 'string';
+						at: 'x-mcp-header' put: 'Region';
+						yourself);
+			at: 'query'
+				put: (EsOrderedDictionary with: 'type' -> 'string');
+			yourself.
+	toolSchema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties' put: properties;
+			at: 'required' put: #('region' 'query');
+			yourself.
+	client knownToolSchemas at: 'execute_sql' put: toolSchema.
+	client knownToolOutputSchemas at: 'execute_sql' put: nil.
+
+	httpClient enqueueResponse: (
+		self
+			jsonResultResponseId: 1
+			result: (
+				EsOrderedDictionary new
+					at: 'resultType' put: 'complete';
+					at: 'content' put: (Array with: (EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> '1 row'));
+					at: 'isError' put: false;
+					yourself)
+			status: 200
+			contentType: 'application/json').
+
+	result :=
+		client
+			callTool: 'execute_sql'
+			arguments: (
+				EsOrderedDictionary new
+					at: 'region' put: 'us-west1';
+					at: 'query' put: 'SELECT 1';
+					yourself).
+
+	self assert: httpClient posts size equals: 1.
+	post := httpClient posts first.
+	headers := post at: 'headers'.
+	self assert: (self headerNamed: 'Mcp-Method' in: headers) equals: 'tools/call'.
+	self assert: (self headerNamed: 'Mcp-Name' in: headers) equals: 'execute_sql'.
+	self assert: (self headerNamed: 'Mcp-Param-Region' in: headers) equals: 'us-west1'
+]
+
 { #category : 'Lifecycle Tests' }
 TestMcpHttpClientTransport >> testChangingEndpointTerminatesPriorSession [
 	"Changing the URL terminates both prior HTTP exchanges cleanly."

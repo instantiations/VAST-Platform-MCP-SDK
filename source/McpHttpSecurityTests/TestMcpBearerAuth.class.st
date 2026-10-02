@@ -110,10 +110,12 @@ TestMcpBearerAuth >> testDisabledAuthAllowsUnauthenticatedRequests [
 	| request body result |
 
 	authSettings enabled: false.
-	body := '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}'.
+	body :=
+		'{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'.
 	request :=
 		McpHttpServerTestRequest new
 			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'server/discover';
 			headerAt: 'Accept' put: 'application/json';
 			contentType: 'application/json';
 			contents: body asUtf8Bytes;
@@ -182,10 +184,12 @@ TestMcpBearerAuth >> testValidTokenProceeds [
 
 	| request body result |
 
-	body := '{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{}}'.
+	body :=
+		'{"jsonrpc":"2.0","id":1,"method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}}'.
 	request :=
 		McpHttpServerTestRequest new
 			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'server/discover';
 			headerAt: 'Accept' put: 'application/json';
 			headerAt: 'Authorization' put: 'Bearer valid-secret-token';
 			contentType: 'application/json';
