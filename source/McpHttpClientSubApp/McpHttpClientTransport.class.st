@@ -318,17 +318,25 @@ McpHttpClientTransport >> doSendListenRequest: requestDictionary id: requestId h
 						event data isEmpty ifFalse: [| parsed |
 							parsed := [McpJSONReader fromString: event data]
 								on: Error do: [:e | nil].
-							parsed ifNotNil: [
-								((parsed at: 'id' ifAbsent: [nil]) = requestId
-									and: [ackResult isNil])
-										ifTrue: [
-											ackResult := self
-				validatedResultFrom: parsed
-												id: requestId.
-											ackSemaphore signal]
-										ifFalse: [self client ifNotNil: [:c |
-											c handleIncomingMessage:
-				parsed]]]]]]
+							parsed ifNotNil: [| isAck |
+								isAck :=
+									((parsed at: 'method' ifAbsent: [nil]) = 'notifications/subscriptions/acknowledged'
+										and: [| meta |
+											meta := (parsed at: 'params' ifAbsent: [EsOrderedDictionary new]) at: '_meta' ifAbsent: [EsOrderedDictionary new].
+											(meta at: 'io.modelcontextprotocol/subscriptionId' ifAbsent: [nil]) = requestId])
+										or: [((parsed at: 'id' ifAbsent: [nil]) = requestId and: [ackResult isNil])].
+								(isAck and: [ackResult isNil])
+									ifTrue: [
+										ackResult :=
+											(parsed includesKey: 'result')
+												ifTrue: [self validatedResultFrom: parsed id: requestId]
+												ifFalse: [
+													(parsed at: 'params' ifAbsent: [EsOrderedDictionary new])
+														at: 'notifications'
+														ifAbsent: [parsed at: 'params' ifAbsent: [EsOrderedDictionary new]]].
+										ackSemaphore signal]
+									ifFalse: [self client ifNotNil: [:c |
+										c handleIncomingMessage: parsed]]]]]]
 			onError: [:err |
 				isDone
 					ifFalse: [
@@ -345,7 +353,6 @@ McpHttpClientTransport >> doSendListenRequest: requestDictionary id: requestId h
 	ackResult ifNil: [self error:
 		'Failed to receive subscription acknowledgment'].
 	^ackResult
-
 ]
 
 { #category : 'Protocol Operations',

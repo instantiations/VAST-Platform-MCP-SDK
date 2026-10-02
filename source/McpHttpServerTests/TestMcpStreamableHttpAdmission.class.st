@@ -1496,6 +1496,51 @@ TestMcpStreamableHttpAdmission >> testSubscriptionsListenRequiresSseAcceptInMode
 	self assert: request header responseHeader status equals: '406 Not Acceptable'
 ]
 
+{ #category : 'Protocol Operations' }
+TestMcpStreamableHttpAdmission >> testSubscriptionsListenStreamsAcknowledgmentNotification [
+	"Verify subscriptions/listen streams notifications/subscriptions/acknowledged as the first message per MCP 2026-07-28."
+
+	| message request capturedBytes connection events parsedMessage meta |
+
+	message :=
+		EsOrderedDictionary new
+			at: 'jsonrpc' put: '2.0';
+			at: 'id' put: 555;
+			at: 'method' put: 'subscriptions/listen';
+			at: 'params'
+				put: (
+					EsOrderedDictionary with:
+						'notifications' ->
+							(EsOrderedDictionary with: 'toolsListChanged' -> true));
+			yourself.
+	request := self requestForMessage: message.
+	capturedBytes := nil.
+	connection := TestMcpDeliveryConnection new.
+	connection writeAction: [:bytes |
+		capturedBytes := bytes copy.
+		Error signal: 'stopStream'].
+	[
+		transport
+			streamSubscriptionsListen: message
+			on: connection
+			request: request
+	] on: Error do: [:e | nil].
+
+	self assert: capturedBytes notNil.
+	events := McpSseParser new parse: capturedBytes asString.
+	self assert: events notEmpty.
+	parsedMessage := McpJSONReader fromString: events first data.
+
+	"Per MCP 2026-07-28: acknowledgment MUST be a notification (no id) with method notifications/subscriptions/acknowledged"
+	self assert: (parsedMessage at: 'jsonrpc') equals: '2.0'.
+	self assert: (parsedMessage at: 'method') equals: 'notifications/subscriptions/acknowledged'.
+	self assert: (parsedMessage includesKey: 'id') not.
+	self assert: (parsedMessage includesKey: 'params').
+	meta := (parsedMessage at: 'params') at: '_meta'.
+	self assert: (meta at: 'io.modelcontextprotocol/subscriptionId') equals: 555.
+	self assert: (((parsedMessage at: 'params') at: 'notifications') at: 'toolsListChanged') equals: true
+]
+
 { #category : 'Session Management' }
 TestMcpStreamableHttpAdmission >> testSuccessfulInitializationCreatesNegotiatedSession [
 	"Initialize returns a session header and retains negotiated metadata."
