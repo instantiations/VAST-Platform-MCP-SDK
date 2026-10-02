@@ -178,6 +178,25 @@ McpJsonRpcDispatcher >> dispatch: aDictionary context: requestContext [
 				message: 'Invalid Request: params must be an object'
 				id: identifier
 				data: nil].
+	(parameters isKindOf: KeyedCollection)
+		ifTrue: [| meta reqVersion |
+			meta := parameters at: '_meta' ifAbsent: [nil].
+			(meta isKindOf: KeyedCollection)
+				ifTrue: [
+					reqVersion := meta at: 'io.modelcontextprotocol/protocolVersion' ifAbsent: [nil].
+					(reqVersion notNil and: [(self server supportedProtocolVersions includes: reqVersion) not])
+						ifTrue: [| errData |
+							hasId ifFalse: [^nil].
+							errData :=
+								EsOrderedDictionary new
+									at: 'supported' put: self server supportedProtocolVersions;
+									at: 'requested' put: reqVersion;
+									yourself.
+							^self
+								formatError: -32022
+								message: 'Unsupported protocol version'
+								id: responseIdentifier
+								data: errData]]].
 	[
 		[
 			result :=

@@ -32,10 +32,11 @@ McpApp class >> _PRAGMA_McpJsonRpcConstants [
 		(name: McpJsonRpcMethodNotFoundCode isConstant: true valueExpression: '-32601')
 		(name: McpJsonRpcInvalidParamsCode isConstant: true valueExpression: '-32602')
 		(name: McpJsonRpcInternalErrorCode isConstant: true valueExpression: '-32603')
+		(name: McpHeaderMismatchErrorCode isConstant: true valueExpression: '-32020')
+		(name: McpMissingRequiredClientCapabilityErrorCode isConstant: true valueExpression: '-32021')
+		(name: McpUnsupportedProtocolVersionErrorCode isConstant: true valueExpression: '-32022')
 		(name: McpResourceNotFoundErrorCode isConstant: true valueExpression: '-32002')
 		(name: McpServerNotInitializedErrorCode isConstant: true valueExpression: '-32002')
 	))
 	"
-
-
 ]

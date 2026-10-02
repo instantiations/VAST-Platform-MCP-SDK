@@ -1204,14 +1204,55 @@ TestMcpStreamableHttpAdmission >> testPostWithMissingProtocolVersionUsesCompatib
 
 { #category : 'Validation' }
 TestMcpStreamableHttpAdmission >> testPostWithUnsupportedProtocolVersionIsRejected [
-	"A non-initialize POST rejects an unsupported protocol version."
+	"A non-initialize POST rejects an unsupported protocol version with HTTP 400 and error -32022."
 
-	| request |
+	| request response body |
 
 	request := self validRequestWithBody: (self pingJsonId: 71).
 	request headerAt: 'MCP-Protocol-Version' put: '2099-01-01'.
-	self assert: (transport handlePostRequest: request) equals: ''.
-	self assert: request header responseHeader status equals: '400 Bad Request'
+	response := transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '400 Bad Request'.
+	self assert: request header responseHeader contentType equals: 'application/json'.
+	body := McpJSONReader fromString: response.
+	self assert: ((body at: 'error') at: 'code') equals: -32022
+]
+
+{ #category : 'Validation' }
+TestMcpStreamableHttpAdmission >> testPostWithUnsupportedProtocolVersionReturnsSpecCompliantError [
+	"A request proposing an unsupported protocol version MUST return HTTP 400 with JSON-RPC error -32022 per MCP 2026-07-28."
+
+	| message request response body error data |
+
+	message :=
+		EsOrderedDictionary new
+			at: 'jsonrpc' put: '2.0';
+			at: 'id' put: 72;
+			at: 'method' put: 'tools/list';
+			at: 'params'
+				put: (
+					EsOrderedDictionary with:
+						'_meta' ->
+							(EsOrderedDictionary with:
+								'io.modelcontextprotocol/protocolVersion' -> '1999-01-01'));
+			yourself.
+	request :=
+		(self requestForMessage: message)
+			headerAt: 'MCP-Protocol-Version' put: '1999-01-01';
+			headerAt: 'Mcp-Method' put: 'tools/list';
+			yourself.
+	response := transport handlePostRequest: request.
+
+	self assert: request header responseHeader status equals: '400 Bad Request'.
+	self assert: request header responseHeader contentType equals: 'application/json'.
+	body := McpJSONReader fromString: response.
+	self assert: (body at: 'jsonrpc') equals: '2.0'.
+	self assert: (body at: 'id') equals: 72.
+	error := body at: 'error'.
+	self assert: (error at: 'code') equals: -32022.
+	self assert: (error at: 'message') equals: 'Unsupported protocol version'.
+	data := error at: 'data'.
+	self assert: (data at: 'requested') equals: '1999-01-01'.
+	self assert: (data at: 'supported') equals: protocolServer supportedProtocolVersions
 ]
 
 { #category : 'Session Management' }
@@ -1253,14 +1294,16 @@ TestMcpStreamableHttpAdmission >> testPreReadyRequestReturnsServerNotInitialized
 TestMcpStreamableHttpAdmission >> testProtocolVersionMustMatchKnownSession [
 	"Every post-initialization request must use the negotiated version."
 
-	| exchange session request |
+	| exchange session request response body |
 
 	exchange := self performInitializationId: 92.
 	session := exchange at: 'session'.
 	request := self requestForMessage: (self jsonRpcMessageMethod: 'ping' id: 93) session: session.
 	request headerAt: 'MCP-Protocol-Version' put: '2099-01-01'.
-	self assert: (transport handlePostRequest: request) equals: ''.
-	self assert: request header responseHeader status equals: '400 Bad Request'
+	response := transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '400 Bad Request'.
+	body := McpJSONReader fromString: response.
+	self assert: ((body at: 'error') at: 'code') equals: -32022
 ]
 
 { #category : 'Session Management' }
