@@ -30,7 +30,8 @@ Class {
 		'isRunning',
 		'inputStream',
 		'outputStream',
-		'process'
+		'process',
+		'negotiatedProtocolVersion'
 	],
 	#pools : [
 		'McpJsonRpcConstants'
@@ -99,6 +100,7 @@ McpStdioServer >> initialize [
 
 	super initialize.
 	isRunning := false.
+	negotiatedProtocolVersion := nil.
 	^self
 ]
 
@@ -136,6 +138,29 @@ McpStdioServer >> isRunning [
 ]
 
 { #category : 'Accessing' }
+McpStdioServer >> negotiatedProtocolVersion [
+	"Answer the protocol version negotiated via initialize handshake, or nil.
+
+	 Answers:
+		<String> or nil."
+
+	^negotiatedProtocolVersion
+]
+
+{ #category : 'Accessing' }
+McpStdioServer >> negotiatedProtocolVersion: aString [
+	"Set the protocol version negotiated via initialize handshake.
+
+	 Arguments:
+		aString - <String> or nil.
+	 Answers:
+		<McpStdioServer> the receiver."
+
+	negotiatedProtocolVersion := aString.
+	^self
+]
+
+{ #category : 'Accessing' }
 McpStdioServer >> outputStream [
 	"Answer the output stream.
 
@@ -167,7 +192,7 @@ McpStdioServer >> processMessage: aLine [
 	 Answers:
 		<McpStdioServer> the receiver."
 
-	| lineString parsed context response |
+	| lineString parsed context response method params meta reqVersion |
 
 	lineString :=
 		(aLine isKindOf: ByteArray)
@@ -208,8 +233,35 @@ McpStdioServer >> processMessage: aLine [
 			^self].
 	context := McpServerRequestContext new.
 	context transportRequest: parsed.
-	context protocolVersion: '2026-07-28'.
+	method := parsed at: 'method' ifAbsent: [nil].
+	params := parsed at: 'params' ifAbsent: [nil].
+	reqVersion := nil.
+	(params isKindOf: KeyedCollection)
+		ifTrue: [
+			meta := params at: '_meta' ifAbsent: [nil].
+			(meta isKindOf: KeyedCollection)
+				ifTrue: [
+					reqVersion := meta at: 'io.modelcontextprotocol/protocolVersion' ifAbsent: [nil].
+					(meta at: 'io.modelcontextprotocol/clientInfo' ifAbsent: [nil])
+						ifNotNil: [:info | context clientInfo: info].
+					(meta at: 'io.modelcontextprotocol/clientCapabilities' ifAbsent: [nil])
+						ifNotNil: [:caps | context clientCapabilities: caps].
+					(meta at: 'io.modelcontextprotocol/logLevel' ifAbsent: [nil])
+						ifNotNil: [:lvl | context logLevel: lvl]]].
+	method = 'initialize'
+		ifTrue: [
+			(params isKindOf: KeyedCollection)
+				ifTrue: [reqVersion := params at: 'protocolVersion' ifAbsent: [nil]]].
+	reqVersion ifNil: [
+		reqVersion := self negotiatedProtocolVersion ifNil: ['2026-07-28']].
+	context protocolVersion: reqVersion.
 	response := self dispatcher dispatch: parsed context: context.
+	(method = 'initialize' and: [response notNil and: [(response includesKey: 'error') not]])
+		ifTrue: [| result |
+			result := response at: 'result' ifAbsent: [nil].
+			(result isKindOf: KeyedCollection)
+				ifTrue: [
+					negotiatedProtocolVersion := result at: 'protocolVersion' ifAbsent: [nil]]].
 	response ifNotNil: [self sendResponse: response].
 	^self
 ]
