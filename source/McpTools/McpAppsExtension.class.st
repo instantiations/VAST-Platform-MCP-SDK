@@ -92,7 +92,13 @@ McpAppsExtension >> addHtmlResource: aUri html: htmlString [
 			uri: aUri;
 			name: (aUri copyFrom: 6 to: aUri size);
 			mimeType: self class appMimeType;
-			block: [htmlString copy];
+			block: [
+				EsOrderedDictionary with: 'contents' -> (Array with: (
+					EsOrderedDictionary new
+						at: 'uri' put: aUri copy;
+						at: 'mimeType' put: self class appMimeType;
+						at: 'text' put: htmlString copy;
+						yourself))];
 			yourself.
 	self resources add: resource.
 	^self

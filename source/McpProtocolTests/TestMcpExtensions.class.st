@@ -53,6 +53,30 @@ TestMcpExtensions >> testAppsExtensionAddsHtmlResourceAndTool [
 ]
 
 { #category : 'Testing' }
+TestMcpExtensions >> testAppsExtensionResourceReadAnswersValidResourceResult [
+	"Verify MCP Apps HTML resource returns a valid resource contents dictionary when read."
+
+	| apps readResult contents firstItem |
+
+	apps := McpAppsExtension new.
+	apps addHtmlResource: 'ui://clock/app.html' html: '<html><body>Clock</body></html>'.
+	server addExtension: apps.
+
+	readResult :=
+		server
+			resourcesRead: (EsOrderedDictionary with: 'uri' -> 'ui://clock/app.html')
+			context: nil.
+	self assert: (readResult isKindOf: KeyedCollection).
+	contents := readResult at: 'contents'.
+	self assert: (contents isKindOf: SequenceableCollection).
+	self assert: contents size equals: 1.
+	firstItem := contents first.
+	self assert: (firstItem at: 'uri') equals: 'ui://clock/app.html'.
+	self assert: (firstItem at: 'mimeType') equals: 'text/html;profile=mcp-app'.
+	self assert: (firstItem at: 'text') equals: '<html><body>Clock</body></html>'
+]
+
+{ #category : 'Testing' }
 TestMcpExtensions >> testAppsExtensionValidationRejectsMissingResource [
 	"Verify MCP Apps validation rejects tools referencing unregistered UI resources."
 
