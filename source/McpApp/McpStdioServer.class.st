@@ -90,6 +90,59 @@ McpStdioServer >> dispatcher: aDispatcher [
 	^self
 ]
 
+{ #category : 'accessing',
+  #vaVisibility : 'private' }
+McpStdioServer >> extractMetaParametersFrom: params into: context [
+	"Extract client info, capabilities, and log level from _meta parameters into the request context.
+
+	 Arguments:
+		params - <KeyedCollection> or nil.
+		context - <McpServerRequestContext>."
+
+	| meta |
+
+	(params isKindOf: KeyedCollection) ifFalse: [^self].
+	meta := params at: '_meta' ifAbsent: [nil].
+	(meta isKindOf: KeyedCollection) ifFalse: [^self].
+
+	(meta at: 'io.modelcontextprotocol/clientInfo' ifAbsent: [nil])
+		ifNotNil: [:info | context clientInfo: info].
+	(meta at: 'io.modelcontextprotocol/clientCapabilities' ifAbsent: [nil])
+		ifNotNil: [:caps | context clientCapabilities: caps].
+	(meta at: 'io.modelcontextprotocol/logLevel' ifAbsent: [nil])
+		ifNotNil: [:lvl | context logLevel: lvl].
+	^self
+]
+
+{ #category : 'accessing',
+  #vaVisibility : 'private' }
+McpStdioServer >> extractProtocolVersionFrom: method params: params [
+	"Extract the protocol version from the JSON-RPC request.
+
+	 Arguments:
+		method - <String> or nil.
+		params - <KeyedCollection> or nil.
+	 Answers:
+		<String>"
+
+	| reqVersion meta |
+
+	reqVersion := nil.
+	(params isKindOf: KeyedCollection)
+		ifTrue: [
+			meta := params at: '_meta' ifAbsent: [nil].
+			(meta isKindOf: KeyedCollection)
+				ifTrue: [
+					reqVersion := meta at: 'io.modelcontextprotocol/protocolVersion' ifAbsent: [nil]]].
+	method = 'initialize'
+		ifTrue: [
+			(params isKindOf: KeyedCollection)
+				ifTrue: [reqVersion := params at: 'protocolVersion' ifAbsent: [nil]]].
+	reqVersion ifNil: [
+		reqVersion := self negotiatedProtocolVersion ifNil: ['2026-07-28']].
+	^reqVersion
+]
+
 { #category : 'Initialization',
   #vaVisibility : 'private' }
 McpStdioServer >> initialize [
@@ -192,7 +245,7 @@ McpStdioServer >> processMessage: aLine [
 	 Answers:
 		<McpStdioServer> the receiver."
 
-	| lineString parsed context response method params meta reqVersion |
+	| lineString parsed context response method params reqVersion |
 
 	lineString :=
 		(aLine isKindOf: ByteArray)
@@ -235,25 +288,8 @@ McpStdioServer >> processMessage: aLine [
 	context transportRequest: parsed.
 	method := parsed at: 'method' ifAbsent: [nil].
 	params := parsed at: 'params' ifAbsent: [nil].
-	reqVersion := nil.
-	(params isKindOf: KeyedCollection)
-		ifTrue: [
-			meta := params at: '_meta' ifAbsent: [nil].
-			(meta isKindOf: KeyedCollection)
-				ifTrue: [
-					reqVersion := meta at: 'io.modelcontextprotocol/protocolVersion' ifAbsent: [nil].
-					(meta at: 'io.modelcontextprotocol/clientInfo' ifAbsent: [nil])
-						ifNotNil: [:info | context clientInfo: info].
-					(meta at: 'io.modelcontextprotocol/clientCapabilities' ifAbsent: [nil])
-						ifNotNil: [:caps | context clientCapabilities: caps].
-					(meta at: 'io.modelcontextprotocol/logLevel' ifAbsent: [nil])
-						ifNotNil: [:lvl | context logLevel: lvl]]].
-	method = 'initialize'
-		ifTrue: [
-			(params isKindOf: KeyedCollection)
-				ifTrue: [reqVersion := params at: 'protocolVersion' ifAbsent: [nil]]].
-	reqVersion ifNil: [
-		reqVersion := self negotiatedProtocolVersion ifNil: ['2026-07-28']].
+	reqVersion := self extractProtocolVersionFrom: method params: params.
+	self extractMetaParametersFrom: params into: context.
 	context protocolVersion: reqVersion.
 	response := self dispatcher dispatch: parsed context: context.
 	(method = 'initialize' and: [response notNil and: [(response includesKey: 'error') not]])

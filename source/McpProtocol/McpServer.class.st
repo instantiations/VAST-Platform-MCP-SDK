@@ -732,11 +732,10 @@ McpServer >> normalizeToolResult: executionResult for: aTool [
 		ifTrue: [
 			resultType := executionResult at: 'resultType' ifAbsent: [nil].
 			(resultType = 'input_required' or: [resultType = 'inputRequired'])
+				ifTrue: [^executionResult].
+			(executionResult includesKey: 'content')
 				ifTrue: [^executionResult]].
-	((aTool outputSchema notNil) and: [
-		(executionResult isKindOf: KeyedCollection)
-			and: [(executionResult includesKey: 'content') not]])
-				ifFalse: [^self normalizeToolResult: executionResult].
+	aTool outputSchema ifNil: [^self normalizeToolResult: executionResult].
 	text := String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: executionResult].
 	content :=
 		EsOrderedDictionary new
@@ -1975,8 +1974,6 @@ McpServer >> validateToolResult: result for: aTool [
 	isError := result at: 'isError' ifAbsent: [false].
 	isError isBoolean ifFalse: [self error: 'MCP tool result isError must be boolean'].
 	structured := result at: 'structuredContent' ifAbsent: [nil].
-	(structured isNil or: [structured isKindOf: KeyedCollection])
-		ifFalse: [self error: 'MCP structuredContent must be keyed'].
 	schema := aTool outputSchema.
 	(schema notNil and: [isError not])
 		ifTrue: [

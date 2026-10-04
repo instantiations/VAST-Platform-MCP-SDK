@@ -46,6 +46,9 @@ TestMcpProtocolStructures >> testMcpExtensionErrorCodes [
 	| constants |
 
 	constants := Smalltalk at: #McpJsonRpcConstants.
+	self assert: (constants at: 'McpHeaderMismatchErrorCode') equals: -32020.
+	self assert: (constants at: 'McpMissingRequiredClientCapabilityErrorCode') equals: -32021.
+	self assert: (constants at: 'McpUnsupportedProtocolVersionErrorCode') equals: -32022.
 	self assert: (constants at: 'McpResourceNotFoundErrorCode') equals: -32002.
 	self assert: (constants at: 'McpServerNotInitializedErrorCode') equals: -32002
 ]

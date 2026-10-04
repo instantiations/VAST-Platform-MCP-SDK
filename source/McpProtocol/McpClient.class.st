@@ -2570,9 +2570,6 @@ McpClient >> validatedToolResult: result [
 	content do: [:item | self validateContentBlock: item].
 	isError := result at: 'isError' ifAbsent: [false].
 	isError isBoolean ifFalse: [self error: 'MCP tool result isError must be boolean'].
-	structured := result at: 'structuredContent' ifAbsent: [nil].
-	(structured isNil or: [structured isKindOf: KeyedCollection])
-		ifFalse: [self error: 'MCP structuredContent must be keyed'].
 	^self detachedProtocolValue: result
 ]
 
