@@ -327,6 +327,41 @@ McpStreamableHttpTransport >> formatSuccessResponseFor: aRequest payload: dispat
 	^jsonResponse
 ]
 
+{ #category : 'Formatting',
+  #vaVisibility : 'private' }
+McpStreamableHttpTransport >> formatUnsupportedProtocolVersionErrorFor: aRequest message: parsedRequest requested: aVersionString [
+	"Format a 400 Bad Request response with JSON-RPC error -32022 UnsupportedProtocolVersion."
+
+	| id errorData errorResponse jsonResponse supported |
+
+	id :=
+		(parsedRequest isKindOf: KeyedCollection)
+			ifTrue: [parsedRequest at: 'id' ifAbsent: [nil]]
+			ifFalse: [nil].
+	supported :=
+		self dispatcher server
+			ifNotNil: [:s | s supportedProtocolVersions]
+			ifNil: [McpProtocolVersion supportedProtocolVersions].
+	errorData :=
+		EsOrderedDictionary new
+			at: 'supported' put: supported;
+			at: 'requested' put: aVersionString;
+			yourself.
+	errorResponse :=
+		self dispatcher
+			formatError: -32022
+			message: 'Unsupported protocol version'
+			id: id
+			data: errorData.
+	jsonResponse :=
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: errorResponse].
+	aRequest header responseHeader
+		status: '400 Bad Request';
+		contentType: 'application/json';
+		contentLength: jsonResponse asUtf8Bytes size.
+	^jsonResponse
+]
+
 { #category : 'Execution' }
 McpStreamableHttpTransport >> handleDeleteRequest: aRequest [
 	"Terminate the identified MCP Streamable HTTP session.
@@ -1281,10 +1316,10 @@ McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest parsedRequest
 			protocolVersion ifNil: [protocolVersion := '2025-03-26'].
 			(self dispatcher server supportedProtocolVersions includes: protocolVersion)
 				ifFalse: [
-					aRequest header responseHeader
-						status: '400 Bad Request';
-						contentLength: 0.
-					^'']].
+					^self
+						formatUnsupportedProtocolVersionErrorFor: aRequest
+						message: parsedRequest
+						requested: protocolVersion]].
 
 	^nil
 ]
@@ -1307,10 +1342,10 @@ McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest session: sess
 	(protocolVersion notNil
 		and: [(self dispatcher server supportedProtocolVersions includes: protocolVersion) not])
 			ifTrue: [
-				aRequest header responseHeader
-					status: '400 Bad Request';
-					contentLength: 0.
-				^''].
+				^self
+					formatUnsupportedProtocolVersionErrorFor: aRequest
+					message: nil
+					requested: protocolVersion].
 	^nil
 ]
 
