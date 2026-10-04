@@ -227,47 +227,14 @@ McpClient >> callTool: toolName arguments: arguments [
 
 { #category : 'Execution' }
 McpClient >> callTool: toolName arguments: arguments headers: requestHeaders [
-	"Call a server tool and answer a validated detached result, driving any
-		InputRequiredResult rounds.
+	"Call a server tool and answer a validated detached result, driving any InputRequiredResult rounds."
 
-	 Arguments:
-		toolName - <String> nonempty tool name.
-		arguments - <KeyedCollection> tool arguments, or nil.
-		requestHeaders - <KeyedCollection> transport headers, or nil.
-	 Answers:
-		<KeyedCollection> detached MCP CallToolResult."
-
-	| parameters initialResult result |
-
-	(toolName isString and: [toolName isEmpty not])
-		ifFalse: [self error: 'MCP tool name must be a nonempty string'].
-	(arguments isNil or: [arguments isKindOf: KeyedCollection])
-		ifFalse: [self error:
-			'MCP tool arguments must be a keyed collection or nil'].
-	self requireServerCapability: 'tools' forOperation: 'tools/call'.
-	parameters := EsOrderedDictionary with: 'name' -> toolName.
-	arguments ifNotNil: [parameters at: 'arguments' put: arguments].
-	initialResult :=
-		requestHeaders
-			ifNil: [self sendRequest: 'tools/call' params: parameters]
-			ifNotNil: [self sendRequest: 'tools/call' params: parameters
-				headers: requestHeaders].
-	result :=
-		self
-			driveInputRequired: initialResult
-			retryBlock: [:inputResponses :requestState | | retryParams |
-				retryParams := parameters copy.
-				inputResponses ifNotNil: [retryParams at: 'inputResponses' put:
-				inputResponses].
-				requestState ifNotNil: [retryParams at: 'requestState' put:
-				requestState].
-				requestHeaders
-					ifNil: [self sendRequest: 'tools/call' params: retryParams]
-					ifNotNil: [
-						self sendRequest: 'tools/call' params: retryParams
-				headers: requestHeaders]].
-	^self validatedToolResult: result forTool: toolName headers: requestHeaders
-
+	^self
+		callTool: toolName
+		arguments: arguments
+		headers: requestHeaders
+		progressToken: nil
+		progressCallback: nil
 ]
 
 { #category : 'Execution' }
@@ -2591,9 +2558,6 @@ McpClient >> validatedToolResult: result [
 	content do: [:item | self validateContentBlock: item].
 	isError := result at: 'isError' ifAbsent: [false].
 	isError isBoolean ifFalse: [self error: 'MCP tool result isError must be boolean'].
-	structured := result at: 'structuredContent' ifAbsent: [nil].
-	(structured isNil or: [structured isKindOf: KeyedCollection])
-		ifFalse: [self error: 'MCP structuredContent must be keyed'].
 	^self detachedProtocolValue: result
 ]
 
