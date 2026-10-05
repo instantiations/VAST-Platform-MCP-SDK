@@ -22,7 +22,7 @@
 > 
 > * `#auto` \(`McpClient auto`\): Modern discovery with fallback to legacy handshake.
 > 
-> **External interoperability target:** Official Python MCP SDK `2.1.1`.
+> **External interoperability target:** Official Python MCP SDK `2.2.0`.
 
 ---
 
