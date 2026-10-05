@@ -99,6 +99,7 @@ TestMcpStreamableHttpAdmission >> jsonRpcMessageMethod: methodName id: identifie
 		EsOrderedDictionary new
 			at: 'jsonrpc' put: '2.0';
 			at: 'method' put: methodName;
+			at: 'params' put: EsOrderedDictionary new;
 			yourself.
 	identifier ifNotNil: [message at: 'id' put: identifier].
 	^message
@@ -839,6 +840,33 @@ TestMcpStreamableHttpAdmission >> testModernMismatchedMethodHeaderReturnsHeaderM
 	self assert: ((body at: 'error') at: 'code') equals: -32020
 ]
 
+{ #category : 'Validation' }
+TestMcpStreamableHttpAdmission >> testModernMismatchedProtocolVersionHeaderReturnsHeaderMismatch [
+	"A modern request whose MCP-Protocol-Version header disagrees with the body's _meta protocolVersion is rejected with -32020."
+
+	| message request response body params |
+
+	message := self jsonRpcMessageMethod: 'tools/list' id: 107.
+	params := message at: 'params' ifAbsentPut: [EsOrderedDictionary new].
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2025-11-25';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
+	request :=
+		(self requestForMessage: message)
+			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'tools/list';
+			yourself.
+	response := transport handlePostRequest: request.
+
+	self assert: request header responseHeader status equals: '400 Bad Request'.
+	body := McpJSONReader fromString: response.
+	self assert: ((body at: 'error') at: 'code') equals: -32020
+]
+
 { #category : 'Protocol Operations' }
 TestMcpStreamableHttpAdmission >> testModernNotificationPostReturnsAccepted202 [
 	"In protocol 2026-07-28, a notification POST returns 202 Accepted."
@@ -867,9 +895,17 @@ TestMcpStreamableHttpAdmission >> testModernPostAcceptsJsonWithoutEventStream [
 	| message request response body |
 
 	message := self jsonRpcMessageMethod: 'server/discover' id: 102.
+	(message at: 'params')
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
 	request :=
 		(self requestForMessage: message)
 			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'server/discover';
 			headerAt: 'Accept' put: 'application/json';
 			yourself.
 	response := transport handlePostRequest: request.
@@ -878,20 +914,83 @@ TestMcpStreamableHttpAdmission >> testModernPostAcceptsJsonWithoutEventStream [
 	self assert: (body at: 'id') equals: 102
 ]
 
+{ #category : 'Validation' }
+TestMcpStreamableHttpAdmission >> testModernRequestMissingMcpMethodHeaderIsRejectedWithHeaderMismatch [
+	"A modern request missing the required Mcp-Method header is rejected with HTTP 400 and -32020 HeaderMismatch."
+
+	| message request response body params |
+
+	message := self jsonRpcMessageMethod: 'tools/list' id: 106.
+	params := message at: 'params' ifAbsentPut: [EsOrderedDictionary new].
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
+	request :=
+		(self requestForMessage: message)
+			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			yourself.
+	"Mcp-Method header is intentionally omitted"
+	response := transport handlePostRequest: request.
+
+	self assert: request header responseHeader status equals: '400 Bad Request'.
+	body := McpJSONReader fromString: response.
+	self assert: ((body at: 'error') at: 'code') equals: -32020
+]
+
+{ #category : 'Validation' }
+TestMcpStreamableHttpAdmission >> testModernRequestMissingRequiredMetaFieldsIsRejectedWithInvalidParams [
+	"A modern request missing required _meta fields (clientCapabilities) is rejected with code -32602 per MCP 2026-07-28."
+
+	| message request response body params |
+
+	message := self jsonRpcMessageMethod: 'tools/list' id: 108.
+	params := message at: 'params' ifAbsentPut: [EsOrderedDictionary new].
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				yourself).
+	request :=
+		(self requestForMessage: message)
+			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'tools/list';
+			yourself.
+	response := transport handlePostRequest: request.
+
+	self assert: request header responseHeader status equals: '400 Bad Request'.
+	body := McpJSONReader fromString: response.
+	self assert: ((body at: 'error') at: 'code') equals: -32602
+]
+
 { #category : 'Testing' }
 TestMcpStreamableHttpAdmission >> testModernRequestsIgnoreLegacyCapacity [
 	"The 2026 protocol remains sessionless when legacy capacity is exhausted."
-	| request |
+
+	| request message params |
+
 	transport maxSessions: 1.
 	self readySessionId: 1.
-	request := self requestForMessage:
-		(self jsonRpcMessageMethod: 'server/discover' id: 2).
-	request headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+	message := self jsonRpcMessageMethod: 'server/discover' id: 2.
+	params := message at: 'params' ifAbsentPut: [EsOrderedDictionary new].
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
+	request := self requestForMessage: message.
+	request
+		headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
 		headerAt: 'Mcp-Method' put: 'server/discover'.
 	transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
 	self assert: transport sessionCount equals: 1
-
 ]
 
 { #category : 'Protocol Operations' }
@@ -901,15 +1000,54 @@ TestMcpStreamableHttpAdmission >> testModernSessionlessPostDoesNotRequireSession
 	| message request response body |
 
 	message := self jsonRpcMessageMethod: 'server/discover' id: 101.
+	(message at: 'params')
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
 	request :=
 		(self requestForMessage: message)
 			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'server/discover';
 			yourself.
 	response := transport handlePostRequest: request.
 	self assert: request header responseHeader status equals: '200 OK'.
 	body := (McpJSONReader on: response readStream) next.
 	self assert: (body at: 'id') equals: 101.
 	self assert: ((body at: 'result') at: 'resultType') equals: 'complete'
+]
+
+{ #category : 'Validation' }
+TestMcpStreamableHttpAdmission >> testModernToolCallMissingMcpNameHeaderIsRejectedWithHeaderMismatch [
+	"A modern tools/call request missing the required Mcp-Name header is rejected with HTTP 400 and -32020 HeaderMismatch."
+
+	| testTool message request response body params |
+
+	testTool := self toolNamed: 'echo.tool' block: ['echoed'].
+	protocolServer toolRegistry registerTool: testTool.
+
+	message := self toolCallMessageNamed: 'echo.tool' arguments: EsOrderedDictionary new id: 302.
+	params := message at: 'params' ifAbsentPut: [EsOrderedDictionary new].
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
+	request :=
+		(self requestForMessage: message)
+			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'tools/call';
+			yourself.
+	"Mcp-Name header is intentionally omitted"
+	response := transport handlePostRequest: request.
+
+	self assert: request header responseHeader status equals: '400 Bad Request'.
+	body := McpJSONReader fromString: response.
+	self assert: ((body at: 'error') at: 'code') equals: -32020
 ]
 
 { #category : 'Validation' }
@@ -958,7 +1096,7 @@ TestMcpStreamableHttpAdmission >> testModernToolCallRejectsMismatchedMcpParamHea
 TestMcpStreamableHttpAdmission >> testModernToolCallValidatesMatchingMcpParamHeader [
 	"A modern tools/call with matching Mcp-Param-* header dispatches successfully."
 
-	| tool schema message request response body |
+	| tool schema message request response body params |
 
 	schema :=
 		EsOrderedDictionary new
@@ -985,9 +1123,19 @@ TestMcpStreamableHttpAdmission >> testModernToolCallValidatesMatchingMcpParamHea
 			toolCallMessageNamed: 'cloud.deploy'
 			arguments: (EsOrderedDictionary with: 'region' -> 'us-west1')
 			id: 106.
+	params := message at: 'params'.
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
 	request :=
 		(self requestForMessage: message)
 			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'tools/call';
+			headerAt: 'Mcp-Name' put: 'cloud.deploy';
 			headerAt: 'Mcp-Param-Region' put: 'us-west1';
 			yourself.
 	response := transport handlePostRequest: request.
@@ -1003,7 +1151,7 @@ TestMcpStreamableHttpAdmission >> testModernToolCallValidatesMatchingMcpParamHea
 TestMcpStreamableHttpAdmission >> testModernToolCallWithProgressStreamsSse [
 	"A modern tools/call with progressToken and text/event-stream Accept header switches to streaming."
 
-	| tool message request response |
+	| tool message request response meta |
 
 	tool :=
 		McpBlockTool new
@@ -1020,13 +1168,19 @@ TestMcpStreamableHttpAdmission >> testModernToolCallWithProgressStreamsSse [
 			toolCallMessageNamed: 'heavy.work'
 			arguments: EsOrderedDictionary new
 			id: 301.
-	(message at: 'params')
-		at: '_meta'
-		put: (EsOrderedDictionary with: 'progressToken' -> 'prog-1').
+	meta :=
+		EsOrderedDictionary new
+			at: 'progressToken' put: 'prog-1';
+			at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+			at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+			yourself.
+	(message at: 'params') at: '_meta' put: meta.
 
 	request :=
 		(self requestForMessage: message)
 			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';
+			headerAt: 'Mcp-Method' put: 'tools/call';
+			headerAt: 'Mcp-Name' put: 'heavy.work';
 			headerAt: 'Accept' put: 'application/json, text/event-stream';
 			yourself.
 	response := transport handlePostRequest: request.
@@ -1102,7 +1256,7 @@ TestMcpStreamableHttpAdmission >> testMultipleConcurrentPostRequestsOnSameSessio
 TestMcpStreamableHttpAdmission >> testNumericMcpParamHeaderComparison [
 	"A modern request whose integer parameter header matches numerically (e.g. 42 vs 42.0) succeeds."
 
-	| numTool schema message request response body |
+	| numTool schema message request response body params |
 
 	schema :=
 		EsOrderedDictionary new
@@ -1129,6 +1283,14 @@ TestMcpStreamableHttpAdmission >> testNumericMcpParamHeaderComparison [
 			toolCallMessageNamed: 'calc.scale'
 			arguments: (EsOrderedDictionary with: 'count' -> 42)
 			id: 303.
+	params := message at: 'params'.
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
 
 	request :=
 		(self requestForMessage: message)
@@ -1384,7 +1546,7 @@ TestMcpStreamableHttpAdmission >> testRequestContextFactoryReceivesRequestAndSes
 TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpNameHeaderMatches [
 	"A modern request whose Mcp-Name is Base64 sentinel encoded matches the unencoded body."
 
-	| message request response body encodedName testTool |
+	| message request response body encodedName testTool params |
 
 	testTool := self toolNamed: 'echo.tool' block: ['echoed'].
 	protocolServer toolRegistry registerTool: testTool.
@@ -1392,6 +1554,14 @@ TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpNameHeaderMatches [
 	encodedName :=
 		'=?base64?' , ((Base64Coder current encode: 'echo.tool' asUtf8Bytes) asString) , '?='.
 	message := self toolCallMessageNamed: 'echo.tool' arguments: EsOrderedDictionary new id: 301.
+	params := message at: 'params'.
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
 
 	request :=
 		(self requestForMessage: message)
@@ -1409,7 +1579,7 @@ TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpNameHeaderMatches [
 TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpParamHeaderMatches [
 	"A modern request whose Mcp-Param-* header is sentinel encoded matches the body argument."
 
-	| paramTool schema message request response body encodedVal |
+	| paramTool schema message request response body encodedVal params |
 
 	schema :=
 		EsOrderedDictionary new
@@ -1438,6 +1608,14 @@ TestMcpStreamableHttpAdmission >> testSentinelEncodedMcpParamHeaderMatches [
 			toolCallMessageNamed: 'article.create'
 			arguments: (EsOrderedDictionary with: 'title' -> 'Special Text')
 			id: 302.
+	params := message at: 'params'.
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
 
 	request :=
 		(self requestForMessage: message)
@@ -1495,7 +1673,7 @@ TestMcpStreamableHttpAdmission >> testSessionCapAndDeleteRelease [
 TestMcpStreamableHttpAdmission >> testSubscriptionsListenAcknowledgesWithSseAccept [
 	"A modern subscriptions/listen request with text/event-stream Accept dispatches and acknowledges."
 
-	| message request response body |
+	| message request response body params |
 
 	message :=
 		EsOrderedDictionary new
@@ -1508,6 +1686,14 @@ TestMcpStreamableHttpAdmission >> testSubscriptionsListenAcknowledgesWithSseAcce
 						'notifications' ->
 							(EsOrderedDictionary with: 'tools' -> true with: 'prompts' -> true));
 			yourself.
+	params := message at: 'params'.
+	params
+		at: '_meta'
+		put: (
+			EsOrderedDictionary new
+				at: 'io.modelcontextprotocol/protocolVersion' put: '2026-07-28';
+				at: 'io.modelcontextprotocol/clientCapabilities' put: EsOrderedDictionary new;
+				yourself).
 	request :=
 		(self requestForMessage: message)
 			headerAt: 'MCP-Protocol-Version' put: '2026-07-28';

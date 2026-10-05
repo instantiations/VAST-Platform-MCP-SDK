@@ -480,7 +480,7 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 	 Answers:
 		<String> or <Block> HTTP response entity."
 
-	| requestContext dispatcherResponse routingError paramError isListen hasProgress accept |
+	| requestContext dispatcherResponse routingError paramError metaError isListen hasProgress accept |
 
 	(parsedRequest isKindOf: KeyedCollection)
 		ifFalse: [
@@ -492,6 +492,8 @@ McpStreamableHttpTransport >> handleModernPostRequest: aRequest message: parsedR
 	routingError ifNotNil: [^routingError].
 	paramError := self validateMcpParamHeadersFor: aRequest message: parsedRequest.
 	paramError ifNotNil: [^paramError].
+	metaError := self validateModernMetaFor: aRequest message: parsedRequest.
+	metaError ifNotNil: [^metaError].
 	(parsedRequest includesKey: 'id')
 		ifFalse: [
 			requestContext := self modernRequestContextFor: aRequest message: parsedRequest.
@@ -1312,6 +1314,50 @@ McpStreamableHttpTransport >> validateMcpParamHeadersFor: aRequest message: pars
 
 { #category : 'Validation',
   #vaVisibility : 'private' }
+McpStreamableHttpTransport >> validateModernMetaFor: aRequest message: parsedRequest [
+	"Validate required _meta fields for modern requests per MCP 2026-07-28."
+
+	| params meta hasProto hasCaps id errorResponse jsonResponse |
+
+	(parsedRequest includesKey: 'id') ifFalse: [^nil].
+
+	params :=
+		(parsedRequest isKindOf: KeyedCollection)
+			ifTrue: [parsedRequest at: 'params' ifAbsent: [nil]]
+			ifFalse: [nil].
+	meta :=
+		(params isKindOf: KeyedCollection)
+			ifTrue: [params at: '_meta' ifAbsent: [nil]]
+			ifFalse: [nil].
+	hasProto :=
+		(meta isKindOf: KeyedCollection)
+			and: [meta includesKey: 'io.modelcontextprotocol/protocolVersion'].
+	hasCaps :=
+		(meta isKindOf: KeyedCollection)
+			and: [meta includesKey: 'io.modelcontextprotocol/clientCapabilities'].
+	(hasProto and: [hasCaps]) ifTrue: [^nil].
+
+	id :=
+		(parsedRequest isKindOf: KeyedCollection)
+			ifTrue: [parsedRequest at: 'id' ifAbsent: [nil]]
+			ifFalse: [nil].
+	errorResponse :=
+		self dispatcher
+			formatError: McpJsonRpcInvalidParamsCode
+			message: 'Invalid params: missing required _meta fields'
+			id: id
+			data: nil.
+	jsonResponse :=
+		String streamContents: [:stream | (McpJSONWriter on: stream) nextPut: errorResponse].
+	aRequest header responseHeader
+		status: '400 Bad Request';
+		contentType: 'application/json';
+		contentLength: jsonResponse asUtf8Bytes size.
+	^jsonResponse
+]
+
+{ #category : 'Validation',
+  #vaVisibility : 'private' }
 McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest parsedRequest: parsedRequest [
 	"Validate the Streamable HTTP protocol-version header.
 
@@ -1373,48 +1419,96 @@ McpStreamableHttpTransport >> validateProtocolVersionFor: aRequest session: sess
 { #category : 'Validation',
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> validateRoutingHeadersFor: aRequest message: parsedRequest [
-	"Validate optional Mcp-Method and Mcp-Name routing headers per SEP-2243."
+	"Validate standard MCP request headers (MCP-Protocol-Version, Mcp-Method, Mcp-Name) per SEP-2243."
 
-	| methodHeader method nameHeader expectedName decodedName |
+	| methodHeader method nameHeader expectedName decodedName protocolHeader bodyVersion |
 
-	methodHeader := aRequest getHeader: 'Mcp-Method'.
-	methodHeader ifNil: [methodHeader := aRequest getHeader: 'mcp-method'].
 	method :=
 		(parsedRequest isKindOf: KeyedCollection)
 			ifTrue: [parsedRequest at: 'method' ifAbsent: [nil]]
 			ifFalse: [nil].
-	(methodHeader notNil and: [method notNil and: [methodHeader ~= method]])
+
+	(parsedRequest includesKey: 'id') ifFalse: [^nil].
+
+	protocolHeader := aRequest getHeader: 'MCP-Protocol-Version'.
+	protocolHeader ifNil: [protocolHeader := aRequest getHeader: 'mcp-protocol-version'].
+	bodyVersion := nil.
+	(parsedRequest at: 'params' ifAbsent: [nil]) ifNotNil: [:p |
+		(p isKindOf: KeyedCollection) ifTrue: [
+			(p at: '_meta' ifAbsent: [nil]) ifNotNil: [:m |
+				(m isKindOf: KeyedCollection) ifTrue: [
+					bodyVersion := m at: 'io.modelcontextprotocol/protocolVersion' ifAbsent: [nil]]]]].
+	(bodyVersion notNil and: [protocolHeader ~= bodyVersion])
 		ifTrue: [
-			^self formatHeaderMismatchErrorFor: aRequest message: parsedRequest header: 'Mcp-Method'].
+			^self
+				formatHeaderMismatchErrorFor: aRequest
+				message: parsedRequest
+				header: 'MCP-Protocol-Version'].
+
+	methodHeader := aRequest getHeader: 'Mcp-Method'.
+	methodHeader ifNil: [methodHeader := aRequest getHeader: 'mcp-method'].
+	(methodHeader isNil or: [method isNil or: [methodHeader ~= method]])
+		ifTrue: [
+			^self
+				formatHeaderMismatchErrorFor: aRequest
+				message: parsedRequest
+				header: 'Mcp-Method'].
 
 	nameHeader := aRequest getHeader: 'Mcp-Name'.
 	nameHeader ifNil: [nameHeader := aRequest getHeader: 'mcp-name'].
-	nameHeader ifNotNil: [
-		decodedName := self decodeHeaderValue: nameHeader.
-		(#('tools/call' 'prompts/get') includes: method)
-			ifTrue: [
-				expectedName :=
-					(parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new])
-						at: 'name'
-						ifAbsent: [nil].
-				(expectedName notNil and: [decodedName ~= expectedName])
+	(#('tools/call' 'prompts/get' 'resources/read') includes: method)
+		ifTrue: [
+			nameHeader ifNil: [
+				^self
+					formatHeaderMismatchErrorFor: aRequest
+					message: parsedRequest
+					header: 'Mcp-Name'].
+			decodedName := self decodeHeaderValue: nameHeader.
+			(#('tools/call' 'prompts/get') includes: method)
+				ifTrue: [
+					expectedName :=
+						(parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new])
+							at: 'name'
+							ifAbsent: [nil]].
+			method = 'resources/read'
+				ifTrue: [
+					expectedName :=
+						(parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new])
+							at: 'uri'
+							ifAbsent: [nil]].
+			(expectedName isNil or: [decodedName ~= expectedName])
+				ifTrue: [
+					^self
+						formatHeaderMismatchErrorFor: aRequest
+						message: parsedRequest
+						header: 'Mcp-Name']]
+		ifFalse: [
+			nameHeader ifNotNil: [
+				decodedName := self decodeHeaderValue: nameHeader.
+				(#('tools/call' 'prompts/get') includes: method)
 					ifTrue: [
-						^self
-							formatHeaderMismatchErrorFor: aRequest
-							message: parsedRequest
-							header: 'Mcp-Name']].
-		method = 'resources/read'
-			ifTrue: [
-				expectedName :=
-					(parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new])
-						at: 'uri'
-						ifAbsent: [nil].
-				(expectedName notNil and: [decodedName ~= expectedName])
+						expectedName :=
+							(parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new])
+								at: 'name'
+								ifAbsent: [nil].
+						(expectedName notNil and: [decodedName ~= expectedName])
+							ifTrue: [
+								^self
+									formatHeaderMismatchErrorFor: aRequest
+									message: parsedRequest
+									header: 'Mcp-Name']].
+				method = 'resources/read'
 					ifTrue: [
-						^self
-							formatHeaderMismatchErrorFor: aRequest
-							message: parsedRequest
-							header: 'Mcp-Name']]].
+						expectedName :=
+							(parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new])
+								at: 'uri'
+								ifAbsent: [nil].
+						(expectedName notNil and: [decodedName ~= expectedName])
+							ifTrue: [
+								^self
+									formatHeaderMismatchErrorFor: aRequest
+									message: parsedRequest
+									header: 'Mcp-Name']]]].
 	^nil
 ]
 
