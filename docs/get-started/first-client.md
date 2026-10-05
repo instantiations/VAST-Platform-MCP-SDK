@@ -121,7 +121,7 @@ result := client
     arguments: (EsOrderedDictionary with: 'a' -> 40 with: 'b' -> 2).
 
 (result at: 'isError') ifFalse: [
-    Transcript showCr: ((result at: 'content') first at: 'text')].    "42"
+    Transcript show: ((result at: 'content') first at: 'text')].    "42"
 ```
 
 Failures come back in two different ways:
@@ -146,7 +146,7 @@ client
     callTool: 'import'
     arguments: EsOrderedDictionary new
     progressCallback: [:progress :total :message |
-        Transcript showCr: progress printString , '/' , total printString].
+        Transcript show: progress printString , '/' , total printString].
 ```
 
 The progress block is evaluated with `cull:`, so it can take one to four
@@ -197,7 +197,7 @@ rounds. See [Interactive input](../advanced/mrtr-interactive-input.md).
 ```smalltalk
 client
     listen: (EsOrderedDictionary with: 'toolsListChanged' -> true)
-    do: [:method :params | Transcript showCr: 'Changed: ' , method].
+    do: [:method :params | Transcript show: 'Changed: ' , method].
 ```
 
 The client also drops matching entries from its response cache when a
@@ -212,13 +212,13 @@ client := McpClient auto
     yourself.
 [
     client connect.
-    Transcript showCr: 'Connected to ' , (client serverInfo at: 'name') ,
+    Transcript show: 'Connected to ' , (client serverInfo at: 'name') ,
         ' using ' , client protocolVersion.
     tools := client listTools collect: [:each | each at: 'name'].
-    Transcript showCr: 'Tools: ' , tools printString.
+    Transcript show: 'Tools: ' , tools printString.
     sum := client callTool: 'add'
         arguments: (EsOrderedDictionary with: 'a' -> 1 with: 'b' -> 2).
-    Transcript showCr: 'add(1, 2) = ' , ((sum at: 'content') first at: 'text')
+    Transcript show: 'add(1, 2) = ' , ((sum at: 'content') first at: 'text')
 ] ensure: [client close].
 ```
 
