@@ -60,6 +60,36 @@ client serverCapabilities.  "tools, prompts, resources, ..."
     `client priorDiscover: aResult` before you connect. The client then skips
     the discovery round trip.
 
+The client doesn't keep the discover result after `connect`. Request it
+explicitly once, then reuse it on later connections:
+
+```smalltalk
+| url discover client result |
+url := 'http://127.0.0.1:8080/mcp'.
+
+"First connection: fetch and keep the discovery result"
+client := McpClient modern
+    transport: (McpHttpClientTransport url: url);
+    yourself.
+[client connect.
+    discover := client sendRequest: 'server/discover' params: EsOrderedDictionary new]
+    ensure: [client close].
+
+"Later connections: reuse it; connect sends no server/discover request"
+client := McpClient modern
+    priorDiscover: discover;
+    transport: (McpHttpClientTransport url: url);
+    yourself.
+[client connect.
+    result := client callTool: 'add' arguments: (EsOrderedDictionary with: 'a' -> 1 with: 'b' -> 2).
+    Transcript show: ((result at: 'content') first at: 'text')]
+    ensure: [client close].
+```
+
+The capabilities and server info are taken from the stored result. If
+the server may have changed, for example after a redeploy, discard the
+stored result and connect without it.
+
 ## 3. Discover what the server offers
 
 ```smalltalk
