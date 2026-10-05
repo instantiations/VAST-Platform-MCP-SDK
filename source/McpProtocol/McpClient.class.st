@@ -243,10 +243,8 @@ McpClient >> callTool: toolName
 	headers: requestHeaders
 	progressToken: aToken
 	progressCallback: aBlock [
-	"Call a server tool and answer a validated detached result with progress
-		tracking.
-	 On modern connections, automatically emits Mcp-Param-* headers for
-		 annotated arguments.
+	"Call a server tool and answer a validated detached result with progress tracking.
+	 On modern connections with header-capable transports, automatically emits Mcp-Param-* headers for annotated arguments.
 
 	 Arguments:
 		toolName - <String> nonempty tool name.
@@ -262,22 +260,19 @@ McpClient >> callTool: toolName
 	(toolName isString and: [toolName isEmpty not])
 		ifFalse: [self error: 'MCP tool name must be a nonempty string'].
 	(arguments isNil or: [arguments isKindOf: KeyedCollection])
-		ifFalse: [self error:
-			'MCP tool arguments must be a keyed collection or nil'].
+		ifFalse: [self error: 'MCP tool arguments must be a keyed collection or nil'].
 	self requireServerCapability: 'tools' forOperation: 'tools/call'.
 	parameters := EsOrderedDictionary with: 'name' -> toolName.
 	arguments ifNotNil: [parameters at: 'arguments' put: arguments].
 
 	effectiveHeaders :=
-		requestHeaders ifNotNil: [requestHeaders copy] ifNil:
-			[EsOrderedDictionary new].
-	(McpProtocolVersion isModern: self protocolVersion)
-		ifTrue: [
-			paramHeaders := self resolveParamHeadersForTool: toolName arguments:
-				arguments.
-			paramHeaders keysAndValuesDo: [:k :v |
-				(effectiveHeaders includesKey: k) ifFalse: [effectiveHeaders at:
-				k put: v]]].
+		requestHeaders ifNotNil: [requestHeaders copy] ifNil: [EsOrderedDictionary new].
+	((McpProtocolVersion isModern: self protocolVersion)
+		and: [self transport notNil and: [self transport supportsRequestHeaders]])
+			ifTrue: [
+				paramHeaders := self resolveParamHeadersForTool: toolName arguments: arguments.
+				paramHeaders keysAndValuesDo: [:k :v |
+					(effectiveHeaders includesKey: k) ifFalse: [effectiveHeaders at: k put: v]]].
 	effectiveHeaders isEmpty ifTrue: [effectiveHeaders := nil].
 
 	initialResult :=
@@ -292,10 +287,8 @@ McpClient >> callTool: toolName
 			driveInputRequired: initialResult
 			retryBlock: [:inputResponses :requestState | | retryParams |
 				retryParams := parameters copy.
-				inputResponses ifNotNil: [retryParams at: 'inputResponses' put:
-				inputResponses].
-				requestState ifNotNil: [retryParams at: 'requestState' put:
-				requestState].
+				inputResponses ifNotNil: [retryParams at: 'inputResponses' put: inputResponses].
+				requestState ifNotNil: [retryParams at: 'requestState' put: requestState].
 				self
 					sendRequest: 'tools/call'
 					params: retryParams
@@ -303,7 +296,6 @@ McpClient >> callTool: toolName
 					progressToken: aToken
 					progressCallback: aBlock].
 	^self validatedToolResult: result forTool: toolName headers: requestHeaders
-
 ]
 
 { #category : 'Protocol Operations' }
@@ -982,6 +974,46 @@ McpClient >> extensions [
 	^extensions
 ]
 
+{ #category : 'Private',
+  #vaVisibility : 'private' }
+McpClient >> extractParamHeadersFromSchema: schema arguments: args into: headers [
+	"Extract Mcp-Param-* headers for primitive properties annotated with x-mcp-header,
+	 following statically reachable chains of 'properties' keys per SEP-2243.
+
+	 Arguments:
+		schema - <KeyedCollection> schema or subschema.
+		args - <KeyedCollection> corresponding argument values.
+		headers - <KeyedCollection> destination headers map."
+
+	| properties |
+
+	(schema isKindOf: KeyedCollection) ifFalse: [^self].
+	properties := schema at: 'properties' ifAbsent: [nil].
+	(properties isKindOf: KeyedCollection) ifFalse: [^self].
+	(args isKindOf: KeyedCollection) ifFalse: [^self].
+
+	properties keysAndValuesDo: [:propName :propDef |
+		(propDef isKindOf: KeyedCollection) ifTrue: [
+			(propDef at: 'x-mcp-header' ifAbsent: [nil])
+				ifNotNil: [:headerToken | | token headerName bodyVal valStr |
+					token := headerToken isString ifTrue: [headerToken] ifFalse: [propName].
+					headerName := 'Mcp-Param-' , token.
+					bodyVal := args at: propName ifAbsent: [nil].
+					bodyVal ifNotNil: [
+						valStr :=
+							bodyVal isBoolean
+								ifTrue: [bodyVal ifTrue: ['true'] ifFalse: ['false']]
+								ifFalse: [
+									bodyVal isString
+										ifTrue: [bodyVal]
+										ifFalse: [bodyVal printString]].
+						headers at: headerName put: (self encodeHeaderValue: valStr)]]
+				ifNil: [
+					(propDef includesKey: 'properties') ifTrue: [
+						(args at: propName ifAbsent: [nil]) ifNotNil: [:nestedArgs |
+							self extractParamHeadersFromSchema: propDef arguments: nestedArgs into: headers]]]]]
+]
+
 { #category : 'Protocol Operations' }
 McpClient >> getPrompt: promptName arguments: arguments [
 	"Get a prompt definition from the connected server, driving any InputRequiredResult rounds.
@@ -1651,33 +1683,13 @@ McpClient >> requireServerCapability: capabilityName forOperation: operationName
 McpClient >> resolveParamHeadersForTool: toolName arguments: arguments [
 	"Answer a dictionary of Mcp-Param-* headers for arguments annotated with x-mcp-header (SEP-2243)."
 
-	| headers schema properties |
+	| headers schema |
 
 	headers := EsOrderedDictionary new.
 	(arguments isNil or: [(arguments isKindOf: KeyedCollection) not]) ifTrue: [^headers].
 	schema := self knownToolSchemas at: toolName ifAbsent: [nil].
 	schema ifNil: [^headers].
-	properties := schema at: 'properties' ifAbsent: [nil].
-	(properties isKindOf: KeyedCollection) ifFalse: [^headers].
-
-	properties keysAndValuesDo: [:propName :propDef |
-		(propDef isKindOf: KeyedCollection)
-			ifTrue: [
-				(propDef at: 'x-mcp-header' ifAbsent: [nil]) ifNotNil: [:headerToken | | token
-					  headerName valStr |
-					token := headerToken isString ifTrue: [headerToken] ifFalse: [propName].
-					headerName := 'Mcp-Param-' , token.
-					arguments
-						at: propName
-						ifPresent: [:bodyVal |
-							valStr :=
-								bodyVal isBoolean
-									ifTrue: [bodyVal ifTrue: ['true'] ifFalse: ['false']]
-									ifFalse: [
-										bodyVal isString
-											ifTrue: [bodyVal]
-											ifFalse: [bodyVal printString]].
-							headers at: headerName put: (self encodeHeaderValue: valStr)]]]].
+	self extractParamHeadersFromSchema: schema arguments: arguments into: headers.
 	^headers
 ]
 
