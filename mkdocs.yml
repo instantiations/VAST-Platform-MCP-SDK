@@ -21,7 +21,6 @@ markdown_extensions:
 nav:
   - Overview: index.md
   - Get started:
-      - Installation: get-started/installation.md
       - Your first server: get-started/first-server.md
       - Your first client: get-started/first-client.md
   - Servers:
