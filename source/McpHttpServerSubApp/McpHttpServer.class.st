@@ -257,6 +257,16 @@ McpHttpServer >> initialize [
 
 ]
 
+{ #category : 'Validation' }
+McpHttpServer >> isLoopbackHost [
+	"Answer whether the configured listener host is a loopback address.
+
+	 Answers:
+		<Boolean>."
+
+	^McpHttpServerTransport isLocalhostHost: self host
+]
+
 { #category : 'Accessing' }
 McpHttpServer >> isRunning [
 	"Answer whether the configured SST servlet engine is running.
@@ -484,6 +494,7 @@ McpHttpServer >> start [
 
 	self isRunning ifTrue: [^self].
 	self mcpServer ifNil: [self error: 'MCP server must be configured before startup'].
+	self validateHostConfiguration.
 	url := ('http://' , self host , ':' , self port printString) sstAsUrl.
 	config := self servletConfig.
 	config atContextParameter: 'mcpTransport' put: self transport.
@@ -554,4 +565,18 @@ McpHttpServer >> transport [
 				yourself].
 	^activeTransport
 
+]
+
+{ #category : 'Validation' }
+McpHttpServer >> validateHostConfiguration [
+	"Validate that the server host configuration provides DNS rebinding protection.
+	 When bound to a non-loopback host or wildcard (0.0.0.0), allowedHosts should be explicitly configured.
+
+	 Raises:
+		<McpDeprecationWarning> when bound to a non-loopback host without explicit allowedHosts."
+
+	(self isLoopbackHost not and: [self allowedHosts isEmpty])
+		ifTrue: [
+			McpDeprecationWarning signal:
+				'Server bound to non-loopback host without explicit allowedHosts; DNS rebinding protection requires configuring allowedHosts']
 ]

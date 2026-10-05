@@ -15,6 +15,24 @@ Class {
 	#category : 'McpHttpServerSubApp'
 }
 
+{ #category : 'Validation' }
+McpHttpServerTransport class >> isLocalhostHost: aHostString [
+	"Answer whether aHostString represents a valid localhost host (with or without port)."
+
+	| host hostWithoutPort |
+
+	aHostString isString ifFalse: [^false].
+	host := aHostString trimBlanks asLowercase.
+	host isEmpty ifTrue: [^false].
+	(host = '[::1]' or: [host beginsWithSubCollection: '[::1]:'])
+		ifTrue: [hostWithoutPort := '[::1]']
+		ifFalse: [
+			(host includes: $:)
+				ifTrue: [hostWithoutPort := host copyFrom: 1 to: (host indexOf: $:) - 1]
+				ifFalse: [hostWithoutPort := host]].
+	^#('localhost' '127.0.0.1' '[::1]' '::1') includes: hostWithoutPort
+]
+
 { #category : 'Instance Creation' }
 McpHttpServerTransport class >> new [
 	"Answer a new initialized server transport.
@@ -147,11 +165,18 @@ McpHttpServerTransport >> isAllowedHost: aHostString [
 		ifTrue: [
 			(self allowedHosts includes: '*') ifTrue: [^true].
 			normalizedHost := aHostString ifNil: [''].
-			(self allowedHosts includes: normalizedHost) ifTrue: [^true].
-			(normalizedHost includes: $:)
-				ifTrue: [| hostWithoutPort |
-					hostWithoutPort := normalizedHost copyFrom: 1 to: (normalizedHost indexOf: $:) - 1.
-					(self allowedHosts includes: hostWithoutPort) ifTrue: [^true]].
+			(self allowedHosts anySatisfy: [:each | each sameAs: normalizedHost]) ifTrue: [^true].
+			(normalizedHost beginsWithSubCollection: '[')
+				ifTrue: [
+					(normalizedHost includesSubstring: ']:')
+						ifTrue: [| hostWithoutPort |
+							hostWithoutPort := normalizedHost copyFrom: 1 to: (normalizedHost indexOf: $]).
+							(self allowedHosts anySatisfy: [:each | each sameAs: hostWithoutPort]) ifTrue: [^true]]]
+				ifFalse: [
+					(normalizedHost includes: $:)
+						ifTrue: [| hostWithoutPort |
+							hostWithoutPort := normalizedHost copyFrom: 1 to: (normalizedHost indexOf: $:) - 1.
+							(self allowedHosts anySatisfy: [:each | each sameAs: hostWithoutPort]) ifTrue: [^true]]].
 			^false].
 
 	^self isLocalhostHost: aHostString
@@ -181,18 +206,7 @@ McpHttpServerTransport >> isAllowedOrigin: origin [
 McpHttpServerTransport >> isLocalhostHost: aHostString [
 	"Answer whether aHostString represents a valid localhost host (with or without port)."
 
-	| host hostWithoutPort |
-
-	aHostString isString ifFalse: [^false].
-	host := aHostString trimBlanks asLowercase.
-	host isEmpty ifTrue: [^false].
-	(host beginsWithSubCollection: '[::1]')
-		ifTrue: [hostWithoutPort := '[::1]']
-		ifFalse: [
-			(host includes: $:)
-				ifTrue: [hostWithoutPort := host copyFrom: 1 to: (host indexOf: $:) - 1]
-				ifFalse: [hostWithoutPort := host]].
-	^#('localhost' '127.0.0.1' '[::1]' '::1') includes: hostWithoutPort
+	^self class isLocalhostHost: aHostString
 ]
 
 { #category : 'Validation' }
@@ -327,7 +341,6 @@ McpHttpServerTransport >> validateHostFor: aRequest [
 
 	| hostHeader |
 
-	self allowedHosts isEmpty ifTrue: [^nil].
 	hostHeader := aRequest getHeader: 'Host'.
 	hostHeader ifNil: [^nil].
 	(self isAllowedHost: hostHeader)

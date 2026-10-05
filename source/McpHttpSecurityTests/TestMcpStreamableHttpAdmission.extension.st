@@ -74,6 +74,99 @@ TestMcpStreamableHttpAdmission >> testAllowedHostProceeds [
 ]
 
 { #category : 'Authorization' }
+TestMcpStreamableHttpAdmission >> testDefaultTransportAcceptsIpv4LoopbackWithAndWithoutPort [
+	"A default transport accepts requests with 127.0.0.1 Host header, with and without port."
+
+	| request |
+
+	request := self requestForMessage: (self pingJsonId: 1).
+	request headerAt: 'Host' put: '127.0.0.1'.
+	transport handlePostRequest: request.
+	self deny: request header responseHeader status = '403 Forbidden'.
+
+	request := self requestForMessage: (self pingJsonId: 2).
+	request headerAt: 'Host' put: '127.0.0.1:8080'.
+	transport handlePostRequest: request.
+	self deny: request header responseHeader status = '403 Forbidden'
+]
+
+{ #category : 'Authorization' }
+TestMcpStreamableHttpAdmission >> testDefaultTransportAcceptsIpv6LoopbackWithAndWithoutPort [
+	"A default transport accepts requests with [::1] Host header, with and without port."
+
+	| request |
+
+	request := self requestForMessage: (self pingJsonId: 1).
+	request headerAt: 'Host' put: '[::1]'.
+	transport handlePostRequest: request.
+	self deny: request header responseHeader status = '403 Forbidden'.
+
+	request := self requestForMessage: (self pingJsonId: 2).
+	request headerAt: 'Host' put: '[::1]:8080'.
+	transport handlePostRequest: request.
+	self deny: request header responseHeader status = '403 Forbidden'
+]
+
+{ #category : 'Authorization' }
+TestMcpStreamableHttpAdmission >> testDefaultTransportAcceptsLocalhostWithAndWithoutPort [
+	"A default transport accepts requests with localhost Host header, with and without port."
+
+	| request |
+
+	request := self requestForMessage: (self pingJsonId: 1).
+	request headerAt: 'Host' put: 'localhost'.
+	transport handlePostRequest: request.
+	self deny: request header responseHeader status = '403 Forbidden'.
+
+	request := self requestForMessage: (self pingJsonId: 2).
+	request headerAt: 'Host' put: 'localhost:8080'.
+	transport handlePostRequest: request.
+	self deny: request header responseHeader status = '403 Forbidden'
+]
+
+{ #category : 'Authorization' }
+TestMcpStreamableHttpAdmission >> testDefaultTransportRejectsForeignHost [
+	"A default transport rejects requests with a foreign Host header with 403 Forbidden."
+
+	| request response |
+
+	request := self requestForMessage: (self pingJsonId: 1).
+	request headerAt: 'Host' put: 'evil.attacker.com'.
+	response := transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '403 Forbidden'.
+	self assert: response isEmpty
+]
+
+{ #category : 'Authorization' }
+TestMcpStreamableHttpAdmission >> testDefaultTransportRejectsForeignHostOnDelete [
+	"A default transport rejects DELETE requests with a foreign Host header with 403 Forbidden."
+
+	| exchange session request response |
+
+	exchange := self performInitializationId: 1.
+	session := exchange at: 'session'.
+	request := self deleteRequestForSession: session.
+	request headerAt: 'Host' put: 'evil.attacker.com'.
+	response := transport handleDeleteRequest: request.
+	self assert: request header responseHeader status equals: '403 Forbidden'.
+	self assert: response isEmpty.
+	self assert: (transport sessionNamed: session id ifAbsent: [nil]) notNil
+]
+
+{ #category : 'Authorization' }
+TestMcpStreamableHttpAdmission >> testDefaultTransportRejectsForeignHostWithPort [
+	"A default transport rejects requests with a foreign Host header including port with 403 Forbidden."
+
+	| request response |
+
+	request := self requestForMessage: (self pingJsonId: 1).
+	request headerAt: 'Host' put: 'evil.attacker.com:8080'.
+	response := transport handlePostRequest: request.
+	self assert: request header responseHeader status equals: '403 Forbidden'.
+	self assert: response isEmpty
+]
+
+{ #category : 'Authorization' }
 TestMcpStreamableHttpAdmission >> testDisallowedHostReturnsForbidden [
 	"Requests with Host header not in allowedHosts are rejected with 403 Forbidden."
 

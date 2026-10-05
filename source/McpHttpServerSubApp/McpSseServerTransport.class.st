@@ -184,7 +184,14 @@ McpSseServerTransport >> handleDeleteSessionRequest: aRequest [
 	 Answers:
 		<String> empty response."
 
-	| sessionId removed |
+	| validationResult sessionId removed |
+
+	validationResult := self validateHostFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
+	validationResult := self validateOriginFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
+	validationResult := self validateAuthenticationFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
 
 	sessionId := self sessionIdFrom: aRequest.
 	sessionId ifNil: [

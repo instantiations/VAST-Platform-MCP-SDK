@@ -154,6 +154,18 @@ TestMcpHttpServerConfiguration >> testHostIsValidatedAndDetached [
 	self should: [server host: 127] raise: Error
 ]
 
+{ #category : 'Validation' }
+TestMcpHttpServerConfiguration >> testLoopbackHostDoesNotWarnOnEmptyAllowedHosts [
+	"A server configured with a loopback host does not warn when allowedHosts is empty."
+
+	server host: '127.0.0.1'.
+	server validateHostConfiguration.
+	server host: 'localhost'.
+	server validateHostConfiguration.
+	server host: '[::1]'.
+	server validateHostConfiguration
+]
+
 { #category : 'Configuration' }
 TestMcpHttpServerConfiguration >> testMaximumRequestSizeIsValidatedAndPropagated [
 	"A positive byte limit updates an already-created transport."
@@ -167,6 +179,20 @@ TestMcpHttpServerConfiguration >> testMaximumRequestSizeIsValidatedAndPropagated
 	self should: [server maximumRequestSize: 0] raise: Error.
 	self should: [server maximumRequestSize: -1] raise: Error.
 	self should: [server maximumRequestSize: 1.5] raise: Error
+]
+
+{ #category : 'Validation' }
+TestMcpHttpServerConfiguration >> testNonLoopbackHostWarnsWhenAllowedHostsIsEmpty [
+	"A server bound to 0.0.0.0 or a non-loopback host warns when allowedHosts is empty, but not when configured."
+
+	server host: '0.0.0.0'.
+	self should: [server validateHostConfiguration] raise: McpDeprecationWarning.
+
+	server host: '192.168.1.100'.
+	self should: [server validateHostConfiguration] raise: McpDeprecationWarning.
+
+	server allowedHosts: #('192.168.1.100').
+	server validateHostConfiguration
 ]
 
 { #category : 'Validation' }
