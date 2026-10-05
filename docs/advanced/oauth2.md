@@ -114,60 +114,166 @@ Clients that follow the MCP authorization specification start here.
 The `tokenProvider` block is evaluated for every request, so it can renew
 tokens transparently.
 
-### OAuth 2.0 discovery with `McpOAuth2ClientProvider`
+### The OAuth 2.0 client provider
+
+`McpOAuth2ClientProvider` implements the client side of the
+[MCP authorization flow](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization).
+Given only the MCP server's URL and your OAuth client registration, it
+discovers the authorization server, obtains an access token (if necessary by
+letting the user sign in through the browser), refreshes it when it expires,
+and hands it to the HTTP transport for every request.
+
+This example connects to GitHub's remote MCP server:
 
 ```smalltalk
-| provider transport client |
-provider := (McpOAuth2ClientProvider newForServerUrl: 'https://mcp.example.com/mcp')
-    clientId: 'vast-agent';
-    clientSecret: 'secret';    "for the client-credentials grant"
-    scope: 'mcp:tools';
+| authProvider transport client tools |
+
+"1. Configure the OAuth provider"
+authProvider := McpOAuth2ClientProvider new
+    serverUrl: 'https://api.githubcopilot.com/mcp';
+    clientId: '<client id of your GitHub OAuth app>';
+    clientSecret: '<client secret of your GitHub OAuth app>';
+    scope: 'repo user';
+    callbackPort: 9999;
     yourself.
 
-transport := (McpHttpClientTransport url: 'https://mcp.example.com/mcp')
-    auth: provider;
-    yourself.
+"2. Configure standard transport with the provider"
+transport := McpHttpClientTransport url: 'https://api.githubcopilot.com/mcp' sstAsUrl.
+transport auth: authProvider.
 
-client := McpClient auto transport: transport; yourself.
-[client connect.
- client listTools]
-    ensure: [client close].
+"3. Connect client"
+client := McpClient modern.
+client transport: transport.
+
+[
+    client connect.
+    tools := client listTools.
+    tools inspect.
+] ensure: [
+    client close
+].
 ```
 
-`auth:` installs the provider as the transport's `tokenProvider`. Before each
-request, the provider answers a valid access token:
+On `connect`, the browser opens on GitHub's sign-in and consent page. After
+you approve, GitHub redirects to `http://localhost:9999/callback`, where the
+provider picks up the authorization code and exchanges it for tokens. Then the
+`server/discover` request is sent with `Authorization: Bearer <token>`.
 
-1. A cached, unexpired token is reused.
-2. An expired token is refreshed with its refresh token, if it has one.
-3. Otherwise, the provider runs full discovery:
-    - it fetches `/.well-known/oauth-protected-resource/<path>` from the MCP
-      server ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)),
-    - it fetches the authorization server metadata of the first entry in
-      `authorization_servers` ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)),
-    - it uses the **client-credentials** grant when a `clientSecret` is set and
-      the server supports it, and the interactive **authorization code** grant
-      otherwise.
+Before this works, register an OAuth app with the authorization server (for
+GitHub: *Settings › Developer settings › OAuth Apps*) and set its callback URL
+to `http://localhost:<callbackPort>/callback`, here
+`http://localhost:9999/callback`.
 
-For the authorization code grant, the provider starts an
-`McpOAuth2CallbackServer` on `http://localhost:3030/callback` (change it with
-`callbackPort:`), opens the authorization URL, waits for the redirect and
-exchanges the code for tokens.
+#### Configuration
 
-The default `redirectHandler` opens the URL with the Windows `start` command.
-On other platforms, or in headless images, install your own:
+| Selector | Default | Purpose |
+| --- | --- | --- |
+| `serverUrl:` | the transport's URL | The MCP endpoint, used to find the protected resource metadata. `auth:` fills it in from the transport when it is unset. `McpOAuth2ClientProvider newForServerUrl: aUrl` sets it at creation. Accepts a `String` or an `SstUrl`. |
+| `clientId:` | required | Client id of your registration with the authorization server. |
+| `clientSecret:` | `nil` | Client secret, for confidential clients. It also enables the client-credentials grant (see below). |
+| `scope:` | `nil` | Space-separated scopes to request, e.g. `'repo user'`. |
+| `callbackPort:` | `3030` | Local port for the redirect listener. The redirect URI is `http://localhost:<port>/callback`. |
+| `redirectHandler:` | Windows `start` | One-argument block that receives the authorization URL and must bring it to the user. |
+| `credentials:` | `nil` | The current `SstOAuth2Credentials`. Read it to keep tokens, set it to reuse them, or set it to `nil` to force a new sign-in. |
+
+`transport auth: aProvider` installs the provider as the transport's
+`tokenProvider`, so it can be combined with every other transport setting.
+Only `McpHttpClientTransport` (Streamable HTTP) supports `auth:`, `bearerToken:`
+and `tokenProvider:`. The legacy SSE client transport has no token support.
+
+#### How a token is obtained
+
+Before each request, the transport asks the provider for
+`validAccessToken`:
+
+1. **Cached token:** an unexpired access token is reused.
+2. **Refresh:** an expired token with a refresh token is refreshed at the token
+   endpoint. If the refresh fails, the provider falls back to step 3.
+3. **Discovery and grant:**
+    1. `GET <server origin>/.well-known/oauth-protected-resource<server path>`
+       ([RFC 9728](https://www.rfc-editor.org/rfc/rfc9728)), e.g.
+       `https://api.githubcopilot.com/.well-known/oauth-protected-resource/mcp`.
+       Its `authorization_servers` names the issuer. The first entry is used.
+    2. `GET <issuer origin>/.well-known/oauth-authorization-server<issuer path>`
+       ([RFC 8414](https://www.rfc-editor.org/rfc/rfc8414)), which gives the
+       `authorization_endpoint`, `token_endpoint` and `grant_types_supported`.
+    3. The grant is chosen as follows:
+        - **Client credentials** if `clientId` and `clientSecret` are set, and
+          either the server lists `client_credentials` in
+          `grant_types_supported`, or it publishes neither grant types nor an
+          authorization endpoint. No user is involved, which suits services
+          and agents running unattended.
+        - **Authorization code** otherwise: the interactive browser sign-in
+          described above.
+
+The discovery requests and token exchanges use SST's HTTP client and OAuth 2.0
+support (`SstOAuth2App`). `https` endpoints require OpenSSL.
+
+#### The authorization code flow
+
+For the authorization code grant, the provider:
+
+1. starts an `McpOAuth2CallbackServer` on `callbackPort`,
+2. builds the authorization URL (client id, scope, redirect URI and a random
+   `state`) and passes it to the `redirectHandler`,
+3. waits up to **300 seconds** for the browser to hit
+   `http://localhost:<callbackPort>/callback`. The page shows *Success*, and
+   on timeout the request signals `Timeout waiting for OAuth callback`,
+4. exchanges the code at the token endpoint, sending `clientSecret` if it is
+   set,
+5. stops the callback listener shortly afterwards.
+
+The default `redirectHandler` opens the URL in the default browser with the
+Windows `start` command. On Linux or macOS, or in a headless image, install
+your own:
 
 ```smalltalk
-provider redirectHandler: [:authorizationUrl |
+"macOS"
+authProvider redirectHandler: [:authorizationUrl |
+    OsProcessStarter startShell: { 'open'. '"%1"' bindWith: authorizationUrl asString }].
+
+"Linux"
+authProvider redirectHandler: [:authorizationUrl |
+    OsProcessStarter startShell: { 'xdg-open'. '"%1"' bindWith: authorizationUrl asString }].
+
+"Headless: let the operator open it"
+authProvider redirectHandler: [:authorizationUrl |
     Transcript show: 'Open this URL to sign in: ' , authorizationUrl asString; cr].
 ```
 
-!!! note
-    The client must already be registered with the authorization server
-    (`clientId:`). Dynamic client registration is not performed. Register
-    `http://localhost:<callbackPort>/callback` as a redirect URI.
+The callback listener binds to the local machine. The browser that completes
+the sign-in must run on the same machine as the image.
 
-!!! note
-    The token is obtained before each request. A `401` response isn't retried
-    automatically: it signals an error (`HTTP Error: 401 Unauthorized`) on the
-    client. Reconnect, or clear `provider credentials: nil`, to force a new
-    token.
+#### Token lifetime and reuse
+
+The provider keeps its credentials in memory for as long as it lives. Reuse
+the same provider (or its `credentials`) across reconnects to avoid signing in
+again:
+
+```smalltalk
+| savedCredentials otherProvider |
+savedCredentials := authProvider credentials.
+
+"later, e.g. for a new client"
+otherProvider := McpOAuth2ClientProvider new
+    serverUrl: 'https://api.githubcopilot.com/mcp';
+    clientId: '<client id>';
+    clientSecret: '<client secret>';
+    credentials: savedCredentials;
+    yourself.
+```
+
+Credentials contain bearer and refresh tokens. If you persist them, store them
+encrypted, never in source code or the image's change log.
+
+#### Limitations
+
+- **No dynamic client registration.** The client must be registered in
+  advance (`clientId:`).
+- **No automatic retry on `401`.** If the server rejects a token that hasn't
+  expired yet (revoked, wrong audience), the request signals
+  `HTTP Error: 401 Unauthorized`. Set `authProvider credentials: nil` and
+  reconnect to sign in again.
+- **Only the first** authorization server listed by the resource is used.
+- The callback timeout (300 seconds) and the callback path (`/callback`) are
+  fixed.
