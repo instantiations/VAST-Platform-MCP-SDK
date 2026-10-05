@@ -1017,7 +1017,7 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
 	 Answers:
 		nil."
 
-	| requestId params filter bus completion subscription lf frame streamMutex |
+	| requestId params filter bus completion subscription lf frame streamMutex ackResult ackParams ackMessage |
 
 	requestId := parsedRequest at: 'id' ifAbsent: [nil].
 	params := parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new].
@@ -1029,22 +1029,35 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
 	lf := String with: Character lf.
 	streamMutex := Semaphore forMutualExclusion.
 
+	ackResult :=
+		self dispatcher
+			dispatchMethod: 'subscriptions/listen'
+			params: params
+			id: requestId
+			context: nil.
+
+	ackParams := EsOrderedDictionary new.
+	requestId ifNotNil: [
+		ackParams
+			at: '_meta'
+			put: (EsOrderedDictionary with: 'io.modelcontextprotocol/subscriptionId' -> requestId)].
+	ackParams
+		at: 'notifications'
+		put: (
+			(ackResult isKindOf: KeyedCollection)
+				ifTrue: [ackResult at: 'notifications' ifAbsent: [ackResult]]
+				ifFalse: [EsOrderedDictionary new]).
+
+	ackMessage :=
+		EsOrderedDictionary new
+			at: 'jsonrpc' put: '2.0';
+			at: 'method' put: 'notifications/subscriptions/acknowledged';
+			at: 'params' put: ackParams;
+			yourself.
+
 	frame :=
 		'event: message' , lf , 'data: ' , (
-			String streamContents: [:s | | ackResult responseObj |
-				ackResult :=
-					self dispatcher
-						dispatchMethod: 'subscriptions/listen'
-						params: params
-						id: requestId
-						context: nil.
-				responseObj :=
-					EsOrderedDictionary new
-						at: 'jsonrpc' put: '2.0';
-						at: 'id' put: requestId;
-						at: 'result' put: ackResult;
-						yourself.
-				(McpJSONWriter on: s) nextPut: responseObj]) , lf , lf.
+			String streamContents: [:s | (McpJSONWriter on: s) nextPut: ackMessage]) , lf , lf.
 
 	[
 		streamMutex critical: [
@@ -1061,7 +1074,15 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
 	subscription :=
 		bus
 			subscribe: filter
-			callback: [:notifMethod :notifParams | | notifFrame |
+			callback: [:notifMethod :notifParams | | notifFrame effectiveParams meta |
+				effectiveParams :=
+					(notifParams isKindOf: KeyedCollection)
+						ifTrue: [notifParams copy]
+						ifFalse: [EsOrderedDictionary new].
+				requestId ifNotNil: [
+					meta := effectiveParams at: '_meta' ifAbsentPut: [EsOrderedDictionary new].
+					(meta isKindOf: KeyedCollection)
+						ifTrue: [meta at: 'io.modelcontextprotocol/subscriptionId' put: requestId]].
 				notifFrame :=
 					'event: message' , lf , 'data: ' , (
 						String streamContents: [:s |
@@ -1069,7 +1090,7 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
 								EsOrderedDictionary new
 									at: 'jsonrpc' put: '2.0';
 									at: 'method' put: notifMethod;
-									at: 'params' put: notifParams;
+									at: 'params' put: effectiveParams;
 									yourself)]) , lf , lf.
 				[
 					streamMutex critical: [
