@@ -52,6 +52,36 @@ TestMcpStdioServer >> tearDown [
 ]
 
 { #category : 'Testing' }
+TestMcpStdioServer >> testStdioServerPreservesNegotiatedProtocolVersion [
+	"McpStdioServer preserves the negotiated handshake protocol version rather than forcing modern 2026-07-28."
+
+	| initRequest initResponse parsedInit toolRequest toolResponse parsedTool result |
+
+	initRequest :=
+		'{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"testClient","version":"1.0"}}}'.
+	stdioServer processMessage: initRequest.
+	initResponse := outStream contents.
+	parsedInit := McpJSONReader fromString: initResponse trimBlanks.
+	self assert: ((parsedInit at: 'result') at: 'protocolVersion') equals: '2024-11-05'.
+
+	outStream := WriteStream on: String new.
+	stdioServer outputStream: outStream.
+	stdioServer processMessage: '{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}'.
+
+	outStream := WriteStream on: String new.
+	stdioServer outputStream: outStream.
+	toolRequest :=
+		'{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"add","arguments":{"a":10,"b":20}}}'.
+	stdioServer processMessage: toolRequest.
+	toolResponse := outStream contents.
+	parsedTool := McpJSONReader fromString: toolResponse trimBlanks.
+	result := parsedTool at: 'result'.
+	self assert: (((result at: 'content') first at: 'text')) equals: '30'.
+	self assert: (result includesKey: 'resultType') not.
+	self assert: (result includesKey: '_meta') not
+]
+
+{ #category : 'Testing' }
 TestMcpStdioServer >> testStdioServerProcessesToolCall [
 	"McpStdioServer reads a JSON-RPC request line and writes a single-line JSON-RPC response."
 
