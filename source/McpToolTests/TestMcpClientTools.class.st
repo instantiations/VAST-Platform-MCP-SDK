@@ -493,6 +493,66 @@ TestMcpClientTools >> testToolWithArrayOutputSchemaAcceptsArrayStructuredContent
 	self assert: ((result at: 'structuredContent') first at: 'id') equals: 'user-1'
 ]
 
+{ #category : 'Testing' }
+TestMcpClientTools >> testValidateToolDefinitionAllowsArbitraryNames [
+	"Verify that client allows arbitrary tool names, ignoring the SHOULD guideline for characters."
+
+	| tool validator |
+	validator := McpClient new.
+
+	tool := EsOrderedDictionary new
+		at: 'name' put: 'tool:with/slash and space';
+		at: 'description' put: 'A test';
+		at: 'inputSchema' put: (EsOrderedDictionary with: 'type' -> 'object');
+		yourself.
+
+	self shouldnt: [validator validateToolDefinition: tool] raise: Error
+]
+
+{ #category : 'Testing' }
+TestMcpClientTools >> testValidateToolDefinitionRejectsMalformedParamHeaders [
+	"Verify that client rejects tools with invalid x-mcp-header constraints."
+
+	| tool schemaProps validator |
+	validator := McpClient new.
+
+	schemaProps := EsOrderedDictionary new
+		at: 'param1' put: (
+			EsOrderedDictionary new
+				at: 'type' put: 'string';
+				at: 'x-mcp-header' put: 123;
+				yourself);
+		yourself.
+
+	tool := EsOrderedDictionary new
+		at: 'name' put: 'test_tool';
+		at: 'description' put: 'A test';
+		at: 'inputSchema' put: (
+			EsOrderedDictionary new
+				at: 'type' put: 'object';
+				at: 'properties' put: schemaProps;
+				yourself);
+		yourself.
+
+	self should: [validator validateToolDefinition: tool] raise: Error.
+
+	(schemaProps at: 'param1') at: 'x-mcp-header' put: ''.
+	self should: [validator validateToolDefinition: tool] raise: Error.
+
+	(schemaProps at: 'param1') at: 'x-mcp-header' put: 'invalid header! '.
+	self should: [validator validateToolDefinition: tool] raise: Error.
+
+	(schemaProps at: 'param1')
+		at: 'type' put: 'object';
+		at: 'x-mcp-header' put: 'Valid-Header'.
+	self should: [validator validateToolDefinition: tool] raise: Error.
+
+	(schemaProps at: 'param1')
+		at: 'type' put: 'string';
+		at: 'x-mcp-header' put: 'Valid-Header'.
+	self shouldnt: [validator validateToolDefinition: tool] raise: Error
+]
+
 { #category : 'Test Support',
   #vaVisibility : 'private' }
 TestMcpClientTools >> textToolResult: text isError: isError [

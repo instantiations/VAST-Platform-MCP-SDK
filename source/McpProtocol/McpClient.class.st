@@ -1232,6 +1232,15 @@ McpClient >> isConnected [
 	^self requestMutex critical: [isConnected]
 ]
 
+{ #category : 'Validation' }
+McpClient >> isPrimitiveTypeAllowedForParamHeader: propDef [
+	"Answer whether the property definition is a primitive type (string, boolean, integer, number)."
+
+	| type |
+	type := propDef at: 'type' ifAbsent: [nil].
+	^#('string' 'boolean' 'integer' 'number') includes: type
+]
+
 { #category : 'Accessing',
   #vaVisibility : 'private' }
 McpClient >> isProtocolArray: anObject [
@@ -1266,6 +1275,16 @@ McpClient >> isValidAbsoluteResourceUri: anObject [
 	^scheme allSatisfy: [:character |
 		index := index + 1.
 		self isValidResourceUriSchemeCharacter: character first: index = 1]
+]
+
+{ #category : 'Validation' }
+McpClient >> isValidHeaderToken: aString [
+	"Answer true if aString contains only valid RFC 9110 token characters."
+
+	| validChars |
+	validChars := '!#$%&''*+-.^_`|~'.
+	^aString allSatisfy: [:char |
+		char isAlphaNumeric or: [validChars includes: char]]
 ]
 
 { #category : 'Validation',
@@ -2420,10 +2439,9 @@ McpClient >> validateToolDefinition: definition [
 	name := definition at: 'name'.
 	name size <= 128 ifFalse: [self error:
 		'Tool name must not exceed 128 characters'].
-	(name allSatisfy: [:character | self isValidToolNameCharacter: character])
-		ifFalse: [self error: 'Tool name contains an invalid character'].
 	schema := definition at: 'inputSchema' ifAbsent: [nil].
 	self validateObjectSchema: schema label: 'Tool inputSchema'.
+	self validateToolParamHeaders: schema.
 	schema := definition at: 'outputSchema' ifAbsent: [nil].
 	(schema notNil and: [(schema isKindOf: KeyedCollection) not])
 		ifTrue: [self error: 'Tool outputSchema must be keyed'].
@@ -2436,7 +2454,43 @@ McpClient >> validateToolDefinition: definition [
 			taskSupport])
 			ifFalse: [self error: 'Tool taskSupport value is invalid']].
 	^self
+]
 
+{ #category : 'Validation' }
+McpClient >> validateToolParamHeaders: schema [
+	"Traverse a tool schema properties and validate x-mcp-header annotations."
+
+	| properties |
+	schema ifNil: [^self].
+	(schema isKindOf: KeyedCollection) ifFalse: [^self].
+	properties := schema at: 'properties' ifAbsent: [nil].
+	(properties isKindOf: KeyedCollection) ifFalse: [^self].
+
+	properties keysAndValuesDo: [:propName :propDef |
+		(propDef isKindOf: KeyedCollection) ifTrue: [
+			(propDef includesKey: 'x-mcp-header') ifTrue: [ | headerVal |
+				headerVal := propDef at: 'x-mcp-header'.
+				(headerVal isString or: [headerVal = true]) ifFalse: [
+					self error: 'Tool x-mcp-header must be true or a string'.
+				].
+				headerVal isString ifTrue: [
+					(headerVal isEmpty) ifTrue: [
+						self error: 'Tool x-mcp-header string must not be empty'.
+					].
+					(self isValidHeaderToken: headerVal) ifFalse: [
+						self error: 'Tool x-mcp-header contains invalid characters'.
+					].
+				].
+				(self isPrimitiveTypeAllowedForParamHeader: propDef) ifFalse: [
+					self error: 'Tool x-mcp-header only allowed on primitive types'.
+				].
+			] ifFalse: [
+				(propDef includesKey: 'properties') ifTrue: [
+					self validateToolParamHeaders: propDef
+				]
+			]
+		]
+	]
 ]
 
 { #category : 'Validation',

@@ -149,6 +149,38 @@ TestMcpCompletion >> testCompletionLimitsTo100Values [
 ]
 
 { #category : 'Testing' }
+TestMcpCompletion >> testCompletionResultIncludesResultType [
+	"Verify that modern complete results carry resultType: 'complete'."
+
+	| request response |
+
+	server completionBlock: [:ref :arg :ctx | #('val')].
+
+	request :=
+		EsOrderedDictionary new
+			at: 'jsonrpc' put: '2.0';
+			at: 'id' put: 7;
+			at: 'method' put: 'completion/complete';
+			at: 'params'
+				put: (
+					EsOrderedDictionary new
+						at: '_meta' put: (EsOrderedDictionary with: 'io.modelcontextprotocol/protocolVersion' -> '2026-07-28');
+						at: 'ref'
+							put: (
+								EsOrderedDictionary
+									with: 'type' -> 'ref/prompt'
+									with: 'name' -> 'test');
+						at: 'argument'
+							put: (EsOrderedDictionary with: 'name' -> 'item' with: 'value' -> '');
+						yourself);
+			yourself.
+
+	response := dispatcher dispatch: request.
+	self assert: (response includesKey: 'result').
+	self assert: ((response at: 'result') at: 'resultType') = 'complete'
+]
+
+{ #category : 'Testing' }
 TestMcpCompletion >> testServerAdvertisesCompletionsCapability [
 	"Verify that McpServer advertises the completions capability."
 

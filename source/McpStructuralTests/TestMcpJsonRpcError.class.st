@@ -56,13 +56,13 @@ TestMcpJsonRpcError >> testSignalPreservesFieldsAndDetachesData [
 	nested := EsOrderedDictionary with: 'uri' -> 'test://missing'.
 	source := EsOrderedDictionary with: 'details' -> nested.
 	captured := nil.
-	[McpJsonRpcError signalCode: -32002 message: 'Resource not found' data: source]
+	[McpJsonRpcError signalCode: -32602 message: 'Resource not found' data: source]
 		on: McpJsonRpcError
 		do: [:error |
 			captured := error.
 			error return].
 	nested at: 'uri' put: 'changed'.
-	self assert: captured code equals: -32002.
+	self assert: captured code equals: -32602.
 	self assert: captured messageText equals: 'Resource not found'.
 	returned := captured data.
 	self assert: ((returned at: 'details') at: 'uri') equals: 'test://missing'.

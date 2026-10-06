@@ -155,7 +155,7 @@ McpServer >> completionComplete: parameters context: requestContext [
 	 Answers:
 		<KeyedCollection> CompleteResult."
 
-	| ref argument context refType promptName uri rawResult prompt template |
+	| ref argument context refType promptName uri rawResult prompt template result |
 
 	(parameters isKindOf: KeyedCollection)
 		ifFalse: [
@@ -211,7 +211,9 @@ McpServer >> completionComplete: parameters context: requestContext [
 
 	self completionBlock ifNotNil: [:block |
 		rawResult := block cull: ref cull: argument cull: context cull: self.
-		^self normalizeCompletionResult: rawResult].
+		result := self normalizeCompletionResult: rawResult.
+		(self isModernContext: requestContext orParams: parameters) ifTrue: [ result at: 'resultType' put: 'complete' ].
+		^result].
 
 	refType = 'ref/prompt'
 		ifTrue: [
@@ -237,7 +239,9 @@ McpServer >> completionComplete: parameters context: requestContext [
 							value: (argument at: 'value' ifAbsent: [''])
 							context: context]
 					ifFalse: [#()].
-			^self normalizeCompletionResult: rawResult].
+			result := self normalizeCompletionResult: rawResult.
+			(self isModernContext: requestContext orParams: parameters) ifTrue: [ result at: 'resultType' put: 'complete' ].
+			^result].
 
 	refType = 'ref/resource'
 		ifTrue: [
@@ -265,9 +269,13 @@ McpServer >> completionComplete: parameters context: requestContext [
 							value: (argument at: 'value' ifAbsent: [''])
 							context: context]
 					ifFalse: [#()].
-			^self normalizeCompletionResult: rawResult].
+			result := self normalizeCompletionResult: rawResult.
+			(self isModernContext: requestContext orParams: parameters) ifTrue: [ result at: 'resultType' put: 'complete' ].
+			^result].
 
-	^self normalizeCompletionResult: #()
+	result := self normalizeCompletionResult: #().
+	(self isModernContext: requestContext orParams: parameters) ifTrue: [ result at: 'resultType' put: 'complete' ].
+	^result
 ]
 
 { #category : 'Accessing',
@@ -1008,7 +1016,7 @@ McpServer >> promptsList: parameters context: requestContext [
 		ifTrue: [
 			result
 				at: 'resultType' put: 'complete';
-				at: 'cacheScope' put: 'private';
+				at: 'cacheScope' put: 'public';
 				at: 'ttlMs' put: 0].
 	^result
 ]
@@ -1157,7 +1165,7 @@ McpServer >> resourceTemplatesList: parameters context: requestContext [
 		ifTrue: [
 			result
 				at: 'resultType' put: 'complete';
-				at: 'cacheScope' put: 'private';
+				at: 'cacheScope' put: 'public';
 				at: 'ttlMs' put: 0].
 	^result
 ]
@@ -1201,7 +1209,7 @@ McpServer >> resourcesList: parameters context: requestContext [
 		ifTrue: [
 			result
 				at: 'resultType' put: 'complete';
-				at: 'cacheScope' put: 'private';
+				at: 'cacheScope' put: 'public';
 				at: 'ttlMs' put: 0].
 	^result
 ]
@@ -1707,7 +1715,7 @@ McpServer >> toolsList: parameters context: requestContext [
 		ifTrue: [
 			result
 				at: 'resultType' put: 'complete';
-				at: 'cacheScope' put: 'private';
+				at: 'cacheScope' put: 'public';
 				at: 'ttlMs' put: 0].
 	^result
 ]
