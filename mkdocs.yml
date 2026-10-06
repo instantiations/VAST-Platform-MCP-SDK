@@ -1,0 +1,50 @@
+site_name: VAST MCP SDK
+site_description: VAST Platform Smalltalk implementation of the Model Context Protocol
+repo_url: https://github.com/instantiations/VAST-Platform-MCP-SDK
+docs_dir: docs
+
+theme:
+  name: material
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.indexes
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Overview: index.md
+  - Get started:
+      - Your first server: get-started/first-server.md
+      - Your first client: get-started/first-client.md
+  - Servers:
+      - Tools: servers/tools.md
+      - Resources: servers/resources.md
+      - Prompts: servers/prompts.md
+      - Completions: servers/completions.md
+      - Request context: servers/context.md
+  - Clients:
+      - clients/index.md
+      - Calling tools: clients/calling-tools.md
+      - Reading resources: clients/reading-resources.md
+      - Response caching: clients/caching.md
+      - Session groups: clients/session-groups.md
+  - Transports:
+      - Streamable HTTP: transports/streamable-http.md
+      - stdio: transports/stdio.md
+      - In-memory: transports/in-memory.md
+      - Legacy HTTP+SSE: transports/sse.md
+  - Advanced:
+      - Interactive input (MRTR): advanced/mrtr-interactive-input.md
+      - Security: advanced/security.md
+      - OAuth 2.0: advanced/oauth2.md
+  - Testing:
+      - Conformance: testing/conformance.md
+  - Troubleshooting: troubleshooting.md
+  - Compatibility: COMPATIBILITY.md

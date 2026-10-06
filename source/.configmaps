@@ -13,6 +13,9 @@
 			},
 			{
 				#name : 'McpHttpApp'
+			},
+			{
+				#name : 'McpHttpOAuth2App'
 			}
 		],
 		#conditions : [
@@ -51,6 +54,9 @@
 			},
 			{
 				#name : 'McpTestsApp'
+			},
+			{
+				#name : 'McpHttpOAuth2TestsApp'
 			}
 		],
 		#conditions : [
