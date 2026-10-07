@@ -48,7 +48,7 @@ With the VAST MCP SDK you can:
 
 ---
 
-## Installation / Loading (TODO)
+## Installation / Loading
 
 * Clone, or [download a ZIP archive](https://github.com/instantiations/VAST-Platform-MCP-SDK/archive/refs/heads/main.zip) of, this repository.
 
@@ -243,7 +243,8 @@ tool := McpBlockTool new
 server toolRegistry registerTool: tool.
 
 "Client supplies callback:"
-client elicitationCallback: [:request :clientRef | 'DISCOUNT2026'].
+client elicitationCallback: [:request :clientRef |
+    EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'DISCOUNT2026'].
 ```
 
 State continuation is securely signed using `McpRequestStateSecurity`.
