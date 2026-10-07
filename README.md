@@ -48,7 +48,7 @@ With the VAST MCP SDK you can:
 
 ---
 
-## Installation / Loading (TODO)
+## Installation / Loading
 
 * Clone, or [download a ZIP archive](https://github.com/instantiations/VAST-Platform-MCP-SDK/archive/refs/heads/main.zip) of, this repository.
 
@@ -231,19 +231,35 @@ prompt completionBlock: [:argName :prefix :context |
 
 ### 6. Multi-Round-Trip Input \(Elicitation, Sampling, Roots\)
 
-Tools can pause execution to request client/user input, sample a model, or request filesystem roots:
+Tools can pause execution to request client/user input, sample a model, or request filesystem roots.
+This example demonstrates a server tool requesting a coupon code, and a client intercepting that request to supply the code.
 
 ```smalltalk
-tool := McpBlockTool new
+tool2 := McpBlockTool new
     name: 'checkout';
     inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+    "McpBlockTool automatically skips this block if the client already answered"
     resolve: 'coupon' with: [:ctx :args | McpElicit message: 'Enter coupon code (optional):'];
-    block: [:args | 'Processed with coupon: ' , (args at: 'coupon') printString];
+    block: [:args | | elicitResult couponCode |
+        "The argument contains the ElicitResult object returned by the client"
+        elicitResult := args at: 'coupon'.
+        couponCode := elicitResult at: 'content' ifAbsent: ['none'].
+        'Processed with coupon: ' , couponCode printString
+    ];
     yourself.
-server toolRegistry registerTool: tool.
+server toolRegistry registerTool: tool2.
 
 "Client supplies callback:"
-client elicitationCallback: [:request :clientRef | 'DISCOUNT2026'].
+client elicitationCallback: [:request :clientRef | 
+	| prompt |
+	prompt := (request at: 'params') at: 'message' ifAbsent: ['Input required:'].
+	Transcript show: 'Server asked: ', prompt; cr.
+    
+	EsOrderedDictionary 
+		with: 'action' -> 'accept' 
+		with: 'content' -> 'DISCOUNT2026'].
+	
+result := client callTool: 'checkout' arguments: EsOrderedDictionary new.
 ```
 
 State continuation is securely signed using `McpRequestStateSecurity`.

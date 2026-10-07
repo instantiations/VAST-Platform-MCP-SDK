@@ -10,9 +10,9 @@ JSON-RPC errors reach the client as `McpJsonRpcError` (`code`, `messageText`,
 | `-32700` | `McpJsonRpcParseErrorCode` | The body isn't valid JSON (stdio: a line isn't a complete JSON message). |
 | `-32600` | `McpJsonRpcInvalidRequestCode` | Not a JSON-RPC 2.0 request. |
 | `-32601` | `McpJsonRpcMethodNotFoundCode` | Unknown method, or a method not available in the negotiated protocol version. |
-| `-32602` | `McpJsonRpcInvalidParamsCode` | Unknown tool, prompt or resource (modern), missing or invalid params, invalid prompt arguments. |
+| `-32602` | `McpJsonRpcInvalidParamsCode`/ `McpResourceNotFoundErrorCode`| Unknown tool, prompt or resource (modern), missing or invalid params, invalid prompt arguments. |
 | `-32603` | `McpJsonRpcInternalErrorCode` | Unhandled server error, e.g. a resource reader that failed, a result that violates the `outputSchema`, or a rejected `requestState`. |
-| `-32002` | `McpResourceNotFoundErrorCode` / `McpServerNotInitializedErrorCode` | Unknown resource (handshake era), or a request before `initialize` completed. |
+| `-32002` | `McpServerNotInitializedErrorCode` | Unknown resource (handshake era), or a request before `initialize` completed. |
 | `-32020` | `McpHeaderMismatchErrorCode` | The `Mcp-Method`/`Mcp-Name`/`Mcp-Param-*` headers don't match the body. |
 | `-32021` | `McpMissingRequiredClientCapabilityErrorCode` | The server requires a client extension or capability that the client didn't declare. |
 | `-32022` | `McpUnsupportedProtocolVersionErrorCode` | The server doesn't support the requested protocol version. |

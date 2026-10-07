@@ -287,7 +287,7 @@ TestMcpClientResources >> testMRTRResourceDriving [
 	| inputRequired terminalResult result |
 
 	self connectWithResourcesCapability.
-	client elicitationCallback: [:req :c | 'Access token'].
+	client elicitationCallback: [:req :c | EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'Access token'].
 	inputRequired :=
 		EsOrderedDictionary new
 			at: 'resultType' put: 'input_required';
@@ -316,7 +316,7 @@ TestMcpClientResources >> testMRTRResourceDriving [
 		equals: 'state-resource-1'.
 	self
 		assert: (((transport requests last at: 'params') at: 'inputResponses') at: 'auth')
-		equals: 'Access token'
+		equals: (EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'Access token')
 ]
 
 { #category : 'Validation' }

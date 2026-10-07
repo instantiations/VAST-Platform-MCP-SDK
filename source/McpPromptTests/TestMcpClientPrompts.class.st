@@ -285,7 +285,7 @@ TestMcpClientPrompts >> testMRTRPromptDriving [
 	| inputRequired terminalResult result |
 
 	self connectWithPromptsCapability.
-	client elicitationCallback: [:req :c | 'User choice'].
+	client elicitationCallback: [:req :c | EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'User choice'].
 	inputRequired :=
 		EsOrderedDictionary new
 			at: 'resultType' put: 'input_required';
@@ -314,7 +314,7 @@ TestMcpClientPrompts >> testMRTRPromptDriving [
 	self assert: ((transport requests last at: 'params') at: 'requestState') equals: 'state-prompt-1'.
 	self
 		assert: (((transport requests last at: 'params') at: 'inputResponses') at: 'choice')
-		equals: 'User choice'
+		equals: (EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'User choice')
 ]
 
 { #category : 'Validation' }
