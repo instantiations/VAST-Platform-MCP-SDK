@@ -47,6 +47,33 @@ TestMcpSseServer >> testCreateAndLookupSession [
 ]
 
 { #category : 'Testing' }
+TestMcpSseServer >> testDefaultTransportHostValidation [
+	"Verify that default SSE transport rejects foreign Host headers with 403 and accepts localhost."
+
+	| transport request |
+
+	transport := McpSseServerTransport new.
+
+	request :=
+		McpHttpServerTestRequest new
+			requestUri: '/sse';
+			headerAt: 'Host' put: 'evil.attacker.com';
+			headerAt: 'Accept' put: 'text/event-stream';
+			yourself.
+	transport handleSseGetRequest: request.
+	self assert: request header responseHeader status equals: '403 Forbidden'.
+
+	request :=
+		McpHttpServerTestRequest new
+			requestUri: '/sse';
+			headerAt: 'Host' put: 'localhost';
+			headerAt: 'Accept' put: 'text/event-stream';
+			yourself.
+	transport handleSseGetRequest: request.
+	self deny: request header responseHeader status = '403 Forbidden'
+]
+
+{ #category : 'Testing' }
 TestMcpSseServer >> testEnqueueMessageAndSessionQueueWakeup [
 	"Verify that enqueueMessage:forSession: buffers messages and signals the queue semaphore."
 

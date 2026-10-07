@@ -373,14 +373,15 @@ McpStreamableHttpTransport >> handleDeleteRequest: aRequest [
 
 	| validationResult session removedSession |
 
+	validationResult := self validateHostFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
 	validationResult := self validateOriginFor: aRequest.
 	validationResult ifNotNil: [^validationResult].
 	validationResult := self validateAuthenticationFor: aRequest.
 	validationResult ifNotNil: [^validationResult].
 	session := self sessionForRequest: aRequest.
 	session ifNil: [^''].
-	validationResult := self validateProtocolVersionFor: aRequest session:
-		session.
+	validationResult := self validateProtocolVersionFor: aRequest session: session.
 	validationResult ifNotNil: [^validationResult].
 	removedSession := self removeSessionNamed: session id.
 	removedSession ifNil: [
@@ -392,7 +393,6 @@ McpStreamableHttpTransport >> handleDeleteRequest: aRequest [
 		status: '204 No Content';
 		contentLength: 0.
 	^''
-
 ]
 
 { #category : 'Execution' }
@@ -406,6 +406,8 @@ McpStreamableHttpTransport >> handleGetRequest: aRequest [
 
 	| validationResult |
 
+	validationResult := self validateHostFor: aRequest.
+	validationResult ifNotNil: [^validationResult].
 	validationResult := self validateOriginFor: aRequest.
 	validationResult ifNotNil: [^validationResult].
 	validationResult := self validateAuthenticationFor: aRequest.
@@ -415,7 +417,6 @@ McpStreamableHttpTransport >> handleGetRequest: aRequest [
 		contentLength: 0.
 	aRequest header responseHeader at: 'Allow' put: 'POST, DELETE'.
 	^''
-
 ]
 
 { #category : 'Execution' }
