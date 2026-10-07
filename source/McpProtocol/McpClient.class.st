@@ -850,7 +850,7 @@ McpClient >> dispatchInputRequest: inputRequest named: requestKey [
 	 Answers:
 		<Object> client response for this input request."
 
-	| method |
+	| method callbackResult |
 
 	(inputRequest isKindOf: KeyedCollection)
 		ifFalse: [self error: 'Invalid embedded input request: expected an object'].
@@ -860,7 +860,11 @@ McpClient >> dispatchInputRequest: inputRequest named: requestKey [
 			self elicitationCallback ifNil: [
 				self error:
 					'No client elicitationCallback registered for input request: ' , requestKey].
-			^self elicitationCallback value: inputRequest value: self].
+			callbackResult := self elicitationCallback value: inputRequest value: self.
+			(callbackResult isKindOf: KeyedCollection) ifFalse: [
+				self error: 'Elicitation callback must return an ElicitResult object (KeyedCollection)'.
+			].
+			^callbackResult].
 	method = 'sampling/createMessage'
 		ifTrue: [
 			self samplingCallback ifNil: [

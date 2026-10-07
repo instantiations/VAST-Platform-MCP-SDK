@@ -542,12 +542,10 @@ TestMcpVastInterop >> testVastClientHttpMultiRoundTripResolution [
 			name: 'request_qty';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
 			resolve: 'quantity'
-				with: [:ctx :args |
-					(ctx notNil and: [
-						ctx inputResponses notNil and: [ctx inputResponses includesKey: 'quantity']])
-							ifTrue: [ctx inputResponses at: 'quantity']
-							ifFalse: [McpElicit message: 'How many items?']];
-			block: [:args | 'Processed ' , (args at: 'quantity') printString , ' items'];
+				with: [:ctx :args | McpElicit message: 'How many items?'];
+			block: [:args | | qty |
+				qty := (args at: 'quantity' ifAbsent: [EsOrderedDictionary new]) at: 'content' ifAbsent: [args at: 'quantity'].
+				'Processed ' , qty printString , ' items'];
 			yourself.
 	mcpServer toolRegistry registerTool: tool.
 
@@ -560,7 +558,7 @@ TestMcpVastInterop >> testVastClientHttpMultiRoundTripResolution [
 
 	client := McpClient modern.
 	client transport: (McpHttpClientTransport url: 'http://127.0.0.1:8914/mcp').
-	client elicitationCallback: [:req :c | 12].
+	client elicitationCallback: [:req :c | EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 12].
 	clients add: client.
 	client connect.
 
@@ -1085,12 +1083,10 @@ TestMcpVastInterop >> testVastModernStdioMultiRoundTripResolution [
 			name: 'request_qty';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
 			resolve: 'quantity'
-				with: [:ctx :args |
-					(ctx notNil and: [
-						ctx inputResponses notNil and: [ctx inputResponses includesKey: 'quantity']])
-							ifTrue: [ctx inputResponses at: 'quantity']
-							ifFalse: [McpElicit message: 'How many items?']];
-			block: [:args | 'Processed ' , (args at: 'quantity') printString , ' items'];
+				with: [:ctx :args | McpElicit message: 'How many items?'];
+			block: [:args | | qty |
+				qty := (args at: 'quantity' ifAbsent: [EsOrderedDictionary new]) at: 'content' ifAbsent: [args at: 'quantity'].
+				'Processed ' , qty printString , ' items'];
 			yourself.
 	mcpServer toolRegistry registerTool: tool.
 
@@ -1101,7 +1097,7 @@ TestMcpVastInterop >> testVastModernStdioMultiRoundTripResolution [
 	client transport: (McpInteropStdioClientTransport new requestTimeout: 5;
 		yourself).
 	client transport attachToServer: stdioServer.
-	client elicitationCallback: [:req :c | 12].
+	client elicitationCallback: [:req :c | EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 12].
 	client connect.
 
 	result := client callTool: 'request_qty' arguments: EsOrderedDictionary new.

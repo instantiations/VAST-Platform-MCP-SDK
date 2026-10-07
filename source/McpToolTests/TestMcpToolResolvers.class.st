@@ -40,16 +40,14 @@ TestMcpToolResolvers >> testClientAnswersElicitResolver [
 			name: 'ask_qty';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
 			resolve: 'quantity'
-				with: [:ctx :args |
-					(ctx notNil and: [
-						ctx inputResponses notNil and: [ctx inputResponses includesKey: 'quantity']])
-							ifTrue: [ctx inputResponses at: 'quantity']
-							ifFalse: [McpElicit message: 'How many?']];
-			block: [:args | 'Ordered ' , (args at: 'quantity') printString];
+				with: [:ctx :args | McpElicit message: 'How many?'];
+			block: [:args | | qty |
+				qty := (args at: 'quantity' ifAbsent: [EsOrderedDictionary new]) at: 'content' ifAbsent: [args at: 'quantity'].
+				'Ordered ' , qty printString];
 			yourself.
 	server toolRegistry registerTool: tool.
 
-	client elicitationCallback: [:request :name | 7].
+	client elicitationCallback: [:request :name | EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 7].
 	result := client callTool: 'ask_qty' arguments: EsOrderedDictionary new.
 
 	self assert: (result at: 'isError') equals: false.
