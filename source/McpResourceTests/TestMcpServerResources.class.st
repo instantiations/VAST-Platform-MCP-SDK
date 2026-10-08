@@ -305,7 +305,7 @@ TestMcpServerResources >> testReadUnknownResourceReturnsNotFoundError [
 	| response error |
 
 	response := dispatcher dispatch: (self resourceReadRequestUri: 'test://resources/missing' id: 8).
-	self assertErrorResponse: response code: -32002 id: 8.
+	self assertErrorResponse: response code: -32602 id: 8.
 	error := response at: 'error'.
 	self assert: (error at: 'message') equals: 'Resource not found'.
 	self assert: ((error at: 'data') at: 'uri') equals: 'test://resources/missing'
