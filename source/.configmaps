@@ -67,8 +67,8 @@
 						#versionName : 'V 15.0.0  [593]'
 					},
 					{
-						#name : 'MCP SDK',
-						#versionName : '1.0.0'
+						#name : 'MCP SDK (VAST 15.0)',
+						#versionName : '0.9'
 					}
 				]
 			}
