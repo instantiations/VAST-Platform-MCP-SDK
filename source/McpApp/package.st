@@ -1,6 +1,6 @@
 Package {
 	#name : 'McpApp',
-	#vaPrerequisites : ['EsBase64CoderApp','EsUUIDApp','RegexCoreApp','JsonCanonicalizationApp'],
+	#vaPrerequisites : ['EsBase64CoderApp','EsUUIDApp','JsonCanonicalizationApp','RegexCoreApp'],
 	#vaSubApplications : [
 	{
 		#condition : 'true',

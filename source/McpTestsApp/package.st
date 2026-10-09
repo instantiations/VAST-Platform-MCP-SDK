@@ -1,6 +1,6 @@
 Package {
 	#name : 'McpTestsApp',
-	#vaPrerequisites : ['EsAsynchronousSupport','SUnit','McpApp'],
+	#vaPrerequisites : ['EsAsynchronousSupport','McpApp','SUnit'],
 	#vaSubApplications : [
 	{
 		#condition : 'true',
