@@ -1,6 +1,6 @@
 Package {
 	#name : 'McpHttpApp',
-	#vaPrerequisites : ['SstHttpsCommunications','SstHttpServletSupport','McpApp'],
+	#vaPrerequisites : ['McpApp','SstHttpsCommunications','SstHttpServletSupport'],
 	#vaSubApplications : [
 	{
 		#condition : 'true',
