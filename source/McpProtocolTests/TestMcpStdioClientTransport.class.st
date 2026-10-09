@@ -17,9 +17,14 @@ Class {
 }
 
 { #category : 'Running' }
-TestMcpStdioClientTransport >> expectedFailures [
+TestMcpStdioClientTransport >> selectorsToSkip [
+	"Dynamically skip tests that require tools that are not present."
 
-	^ super expectedFailures , #(testAdkMcpServerStdioIntegration)
+	| skip |
+
+	skip := super selectorsToSkip asOrderedCollection.
+	(Smalltalk includesKey: #AdkMcpServer) ifFalse: [skip add: #testAdkMcpServerStdioIntegration].
+	^skip
 ]
 
 { #category : 'Running' }
