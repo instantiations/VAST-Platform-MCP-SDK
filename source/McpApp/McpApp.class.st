@@ -40,3 +40,13 @@ McpApp class >> _PRAGMA_McpJsonRpcConstants [
 	))
 	"
 ]
+
+{ #category : 'EM-API' }
+McpApp class >> loaded [
+
+	AcoResourceManager
+		defaultClass: McpResourceManager;
+		terminate;
+		default: nil;
+		startUp
+]
