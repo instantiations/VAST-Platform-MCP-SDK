@@ -52,7 +52,7 @@ McpInteropStdioStream >> close [
 				line := pending asByteArray.
 				lines add: line.
 				history add: line copy.
-				pending removeAll].
+				pending copy do: [:element | pending remove: element]].
 		closed := true].
 	available signal
 ]

@@ -97,7 +97,7 @@ McpSseServerTransport >> createSession [
 	entry :=
 		EsOrderedDictionary new
 			at: 'id' put: sessionId;
-			at: 'created' put: Time totalSeconds;
+			at: 'created' put: DateAndTime now asSeconds;
 			at: 'queue' put: OrderedCollection new;
 			at: 'queueMutex' put: Semaphore forMutualExclusion;
 			at: 'queueSemaphore' put: Semaphore new;
@@ -519,7 +519,7 @@ McpSseServerTransport >> streamSseSession: session on: connection initialPayload
 				queueMutex critical: [
 					isClosed := session at: 'closed' ifAbsent: [false].
 					messagesToSend addAll: queue.
-					queue removeAll].
+					queue copy do: [:element | queue remove: element]].
 
 				messagesToSend do: [:msg |
 					frame :=

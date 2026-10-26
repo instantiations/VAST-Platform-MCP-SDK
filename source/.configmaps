@@ -23,10 +23,6 @@
 				#condition : 'System imageVersionDottedId = \'15.0\'',
 				#requiredMaps : [
 					{
-						#name : 'z.ST: Grease',
-						#versionName : 'V 15.0.0  [593]'
-					},
-					{
 						#name : 'z.ST: JSON Support',
 						#versionName : 'V 15.0.0  [593]'
 					},
