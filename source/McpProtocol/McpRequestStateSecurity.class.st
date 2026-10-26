@@ -124,7 +124,7 @@ McpRequestStateSecurity >> sealState: aStateString
 
 	| now claims payloadJson signature b64Payload |
 
-	now := Time totalSeconds.
+	now := DateAndTime now asSeconds.
 	claims :=
 		EsOrderedDictionary new
 			at: 'v' put: 1;
@@ -256,7 +256,7 @@ McpRequestStateSecurity >> unsealState: aTokenString
 					signalCode: McpJsonRpcInvalidParamsCode
 					message: 'Invalid or expired requestState'
 					data: nil].
-	now := Time totalSeconds.
+	now := DateAndTime now asSeconds.
 	(claims at: 'exp' ifAbsent: [0]) <= now
 		ifTrue: [
 			McpJsonRpcError

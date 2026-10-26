@@ -34,7 +34,7 @@ McpSchemaValidator >> anchor: anchorText in: aSchema [
 		do: [:keyword |
 			child := aSchema at: keyword ifAbsent: [nil].
 			(child isKindOf: KeyedCollection) ifTrue: [
-				child valuesDo: [:node |
+				child do: [:node |
 					found := self anchor: anchorText in: node.
 					found ifNotNil: [^found]]]].
 	#('items' 'additionalProperties' 'contains' 'not' 'if' 'then' 'else')

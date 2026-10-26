@@ -110,7 +110,7 @@ McpStreamableHttpTransport >> close [
 		maintenanceStop := true.
 		processToStop := maintenanceProcess.
 		maintenanceProcess := nil.
-		sessions removeAll].
+		sessions copy do: [:session | sessions remove: session]].
 	processToStop ifNotNil: [processToStop terminate]
 
 ]
