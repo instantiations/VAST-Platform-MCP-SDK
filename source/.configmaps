@@ -2,8 +2,8 @@
 	{
 		#formatVersion : '1.1',
 		#name : 'MCP SDK (VAST 15.0)',
-		#versionName : '0.9',
-		#ts : 3968074340,
+		#ts : 3971850206,
+		#versionName : '1.0.0',
 		#applications : [
 			{
 				#name : 'JsonCanonicalizationApp'
@@ -20,7 +20,7 @@
 		],
 		#conditions : [
 			{
-				#condition : 'System imageVersionDottedId = \'15.0\'',
+				#condition : 'true',
 				#requiredMaps : [
 					{
 						#name : 'z.ST: JSON Support',
@@ -41,22 +41,22 @@
 	{
 		#formatVersion : '1.1',
 		#name : 'Test MCP SDK (VAST 15.0)',
-		#versionName : '0.9',
-		#ts : 3968074339,
+		#ts : 3971850206,
+		#versionName : '1.0.0',
 		#applications : [
+			{
+				#name : 'McpHttpOAuth2TestsApp'
+			},
 			{
 				#name : 'McpHttpTestsApp'
 			},
 			{
 				#name : 'McpTestsApp'
-			},
-			{
-				#name : 'McpHttpOAuth2TestsApp'
 			}
 		],
 		#conditions : [
 			{
-				#condition : 'System imageVersionDottedId = \'15.0\'',
+				#condition : 'true',
 				#requiredMaps : [
 					{
 						#name : 'z.ST: SUnit',
@@ -64,7 +64,7 @@
 					},
 					{
 						#name : 'MCP SDK (VAST 15.0)',
-						#versionName : '0.9'
+						#versionName : '1.0.0'
 					}
 				]
 			}
