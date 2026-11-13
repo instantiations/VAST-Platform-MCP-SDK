@@ -884,7 +884,7 @@ McpServer >> promptsGet: parameters context: requestContext [
 	 Answers:
 		<KeyedCollection> MCP GetPromptResult or InputRequiredResult."
 
-	| promptName argumentValues prompt result |
+	| promptName argumentValues prompt result effectiveContext |
 
 	promptName :=
 		parameters
@@ -907,36 +907,36 @@ McpServer >> promptsGet: parameters context: requestContext [
 				signalCode: McpJsonRpcInvalidParamsCode
 				message: 'Invalid params: prompt arguments must be keyed'
 				data: nil].
-	requestContext ifNotNil: [
-		parameters
-			at: 'inputResponses'
-			ifPresent: [:responses | requestContext inputResponses: responses].
-		parameters
-			at: 'requestState'
-			ifPresent: [:rawState | | unsealed |
-				unsealed :=
-					(self isModernContext: requestContext orParams: parameters)
-						ifTrue: [
-							self requestStateSecurity
-								unsealState: rawState
-								expectedMethod: 'prompts/get'
-								expectedTarget: promptName
-								arguments: argumentValues
-								expectedPrincipal: requestContext principal]
-						ifFalse: [rawState].
-				requestContext requestState: unsealed].
-		parameters
-			at: '_meta'
-			ifPresent: [:meta |
-				(meta isKindOf: KeyedCollection)
+	effectiveContext := requestContext ifNil: [McpServerRequestContext new].
+	parameters
+		at: 'inputResponses'
+		ifPresent: [:responses | effectiveContext inputResponses: responses].
+	parameters
+		at: 'requestState'
+		ifPresent: [:rawState | | unsealed |
+			unsealed :=
+				(self isModernContext: effectiveContext orParams: parameters)
 					ifTrue: [
-						meta
-							at: 'progressToken'
-							ifPresent: [:token | requestContext progressToken: token]]].
-		parameters
-			at: 'progressToken'
-			ifPresent: [:token |
-				requestContext progressToken ifNil: [requestContext progressToken: token]]].
+						self requestStateSecurity
+							unsealState: rawState
+							expectedMethod: 'prompts/get'
+							expectedTarget: promptName
+							arguments: argumentValues
+							expectedPrincipal: effectiveContext principal]
+					ifFalse: [rawState].
+			effectiveContext requestState: unsealed].
+	parameters
+		at: '_meta'
+		ifPresent: [:meta |
+			(meta isKindOf: KeyedCollection)
+				ifTrue: [
+					meta
+						at: 'progressToken'
+						ifPresent: [:token | effectiveContext progressToken: token]]].
+	parameters
+		at: 'progressToken'
+		ifPresent: [:token |
+			effectiveContext progressToken ifNil: [effectiveContext progressToken: token]].
 	prompt :=
 		self promptRegistry
 			promptNamed: promptName
@@ -949,8 +949,8 @@ McpServer >> promptsGet: parameters context: requestContext [
 	result :=
 		prompt
 			renderWithArguments: (self detachedProtocolValue: argumentValues)
-			context: requestContext.
-	(self isModernContext: requestContext orParams: parameters)
+			context: effectiveContext.
+	(self isModernContext: effectiveContext orParams: parameters)
 		ifTrue: [| type |
 			type :=
 				(result isKindOf: KeyedCollection)
@@ -969,7 +969,7 @@ McpServer >> promptsGet: parameters context: requestContext [
 									method: 'prompts/get'
 									target: promptName
 									arguments: argumentValues
-									principal: (requestContext ifNotNil: [:ctx | ctx principal]))]]
+									principal: effectiveContext principal)]]
 				ifFalse: [
 					(result isKindOf: KeyedCollection)
 						ifTrue: [result at: 'resultType' put: 'complete']]].
@@ -1236,7 +1236,7 @@ McpServer >> resourcesRead: parameters context: requestContext [
 	 Answers:
 		<KeyedCollection> MCP ReadResourceResult or InputRequiredResult."
 
-	| resourceUri resource result |
+	| resourceUri resource result effectiveContext |
 
 	resourceUri :=
 		parameters
@@ -1252,39 +1252,39 @@ McpServer >> resourcesRead: parameters context: requestContext [
 				signalCode: McpJsonRpcInvalidParamsCode
 				message: 'Invalid params: malformed resource URI'
 				data: nil].
-	requestContext ifNotNil: [
-		parameters
-			at: 'inputResponses'
-			ifPresent: [:responses | requestContext inputResponses: responses].
-		parameters
-			at: 'requestState'
-			ifPresent: [:rawState | | unsealed |
-				unsealed :=
-					(self isModernContext: requestContext orParams: parameters)
-						ifTrue: [
-							self requestStateSecurity
-								unsealState: rawState
-								expectedMethod: 'resources/read'
-								expectedTarget: resourceUri
-								arguments: EsOrderedDictionary new
-								expectedPrincipal: requestContext principal]
-						ifFalse: [rawState].
-				requestContext requestState: unsealed].
-		parameters
-			at: '_meta'
-			ifPresent: [:meta |
-				(meta isKindOf: KeyedCollection)
+	effectiveContext := requestContext ifNil: [McpServerRequestContext new].
+	parameters
+		at: 'inputResponses'
+		ifPresent: [:responses | effectiveContext inputResponses: responses].
+	parameters
+		at: 'requestState'
+		ifPresent: [:rawState | | unsealed |
+			unsealed :=
+				(self isModernContext: effectiveContext orParams: parameters)
 					ifTrue: [
-						meta
-							at: 'progressToken'
-							ifPresent: [:token | requestContext progressToken: token]]].
-		parameters
-			at: 'progressToken'
-			ifPresent: [:token |
-				requestContext progressToken ifNil: [requestContext progressToken: token]]].
+						self requestStateSecurity
+							unsealState: rawState
+							expectedMethod: 'resources/read'
+							expectedTarget: resourceUri
+							arguments: EsOrderedDictionary new
+							expectedPrincipal: effectiveContext principal]
+					ifFalse: [rawState].
+			effectiveContext requestState: unsealed].
+	parameters
+		at: '_meta'
+		ifPresent: [:meta |
+			(meta isKindOf: KeyedCollection)
+				ifTrue: [
+					meta
+						at: 'progressToken'
+						ifPresent: [:token | effectiveContext progressToken: token]]].
+	parameters
+		at: 'progressToken'
+		ifPresent: [:token |
+			effectiveContext progressToken ifNil: [effectiveContext progressToken: token]].
 	resource := self resourceRegistry resourceAt: resourceUri ifAbsent: [nil].
 	resource
-		ifNotNil: [result := resource readWithContext: requestContext]
+		ifNotNil: [result := resource readWithContext: effectiveContext]
 		ifNil: [| template |
 			template := self resourceTemplateRegistry
 				templateMatchingUri: resourceUri
@@ -1292,15 +1292,15 @@ McpServer >> resourcesRead: parameters context: requestContext [
 			template ifNil: [| errorData notFoundCode |
 				errorData := EsOrderedDictionary with: 'uri' -> resourceUri.
 				notFoundCode :=
-					(self isModernContext: requestContext orParams: parameters)
+					(self isModernContext: effectiveContext orParams: parameters)
 						ifTrue: [McpJsonRpcInvalidParamsCode]
 						ifFalse: [McpResourceNotFoundErrorCode].
 				McpJsonRpcError
 					signalCode: notFoundCode
 					message: 'Resource not found'
 					data: errorData].
-			result := template readUri: resourceUri context: requestContext].
-	(self isModernContext: requestContext orParams: parameters)
+			result := template readUri: resourceUri context: effectiveContext].
+	(self isModernContext: effectiveContext orParams: parameters)
 		ifTrue: [| type |
 			type :=
 				(result isKindOf: KeyedCollection)
@@ -1319,7 +1319,7 @@ McpServer >> resourcesRead: parameters context: requestContext [
 									method: 'resources/read'
 									target: resourceUri
 									arguments: EsOrderedDictionary new
-									principal: (requestContext ifNotNil: [:ctx | ctx principal]))]]
+									principal: effectiveContext principal)]]
 				ifFalse: [
 					(result isKindOf: KeyedCollection)
 						ifTrue: [| ttl scope |
@@ -1552,7 +1552,7 @@ McpServer >> toolsCall: parameters context: requestContext [
 	 Answers:
 		<KeyedCollection> validated MCP CallToolResult or InputRequiredResult."
 
-	| toolName arguments tool normalized validationErrorContent validationErrorResult |
+	| toolName arguments tool normalized validationErrorContent validationErrorResult effectiveContext |
 
 	toolName :=
 		parameters
@@ -1575,39 +1575,39 @@ McpServer >> toolsCall: parameters context: requestContext [
 				signalCode: McpJsonRpcInvalidParamsCode
 				message: 'Invalid params: arguments must be keyed'
 				data: nil].
-	requestContext ifNotNil: [
-		parameters
-			at: 'inputResponses'
-			ifPresent: [:responses | requestContext inputResponses: responses].
-		parameters
-			at: 'requestState'
-			ifPresent: [:rawState | | unsealed |
-				unsealed :=
-					(self isModernContext: requestContext orParams: parameters)
-						ifTrue: [
-							self requestStateSecurity
-								unsealState: rawState
-								expectedMethod: 'tools/call'
-								expectedTarget: toolName
-								arguments: arguments
-								expectedPrincipal: requestContext principal]
-						ifFalse: [rawState].
-				requestContext requestState: unsealed].
-		parameters
-			at: '_meta'
-			ifPresent: [:meta |
-				(meta isKindOf: KeyedCollection)
+	effectiveContext := requestContext ifNil: [McpServerRequestContext new].
+	parameters
+		at: 'inputResponses'
+		ifPresent: [:responses | effectiveContext inputResponses: responses].
+	parameters
+		at: 'requestState'
+		ifPresent: [:rawState | | unsealed |
+			unsealed :=
+				(self isModernContext: effectiveContext orParams: parameters)
 					ifTrue: [
-						meta
-							at: 'progressToken'
-							ifPresent: [:token | requestContext progressToken: token].
-						meta
-							at: 'io.modelcontextprotocol/logLevel'
-							ifPresent: [:lvl | requestContext logLevel: lvl]]].
-		parameters
-			at: 'progressToken'
-			ifPresent: [:token |
-				requestContext progressToken ifNil: [requestContext progressToken: token]]].
+						self requestStateSecurity
+							unsealState: rawState
+							expectedMethod: 'tools/call'
+							expectedTarget: toolName
+							arguments: arguments
+							expectedPrincipal: effectiveContext principal]
+					ifFalse: [rawState].
+			effectiveContext requestState: unsealed].
+	parameters
+		at: '_meta'
+		ifPresent: [:meta |
+			(meta isKindOf: KeyedCollection)
+				ifTrue: [
+					meta
+						at: 'progressToken'
+						ifPresent: [:token | effectiveContext progressToken: token].
+					meta
+						at: 'io.modelcontextprotocol/logLevel'
+						ifPresent: [:lvl | effectiveContext logLevel: lvl]]].
+	parameters
+		at: 'progressToken'
+		ifPresent: [:token |
+			effectiveContext progressToken ifNil: [effectiveContext progressToken: token]].
 	tool :=
 		self toolRegistry
 			toolNamed: toolName
@@ -1629,7 +1629,7 @@ McpServer >> toolsCall: parameters context: requestContext [
 					at: 'content' put: (Array with: validationErrorContent);
 					at: 'isError' put: true;
 					yourself.
-			(self isModernContext: requestContext orParams: parameters)
+			(self isModernContext: effectiveContext orParams: parameters)
 				ifTrue: [validationErrorResult at: 'resultType' put: 'complete'].
 			^self detachedProtocolValue: validationErrorResult].
 	normalized :=
@@ -1638,7 +1638,7 @@ McpServer >> toolsCall: parameters context: requestContext [
 				normalizeToolResult: (
 					tool
 						executeWithArguments: (self detachedProtocolValue: arguments)
-						context: requestContext)
+						context: effectiveContext)
 				for: tool]
 					on: Error
 					do: [:executionError | | errorContent errorResult |
@@ -1652,10 +1652,10 @@ McpServer >> toolsCall: parameters context: requestContext [
 								at: 'content' put: (Array with: errorContent);
 								at: 'isError' put: true;
 								yourself.
-						(self isModernContext: requestContext orParams: parameters)
+						(self isModernContext: effectiveContext orParams: parameters)
 							ifTrue: [errorResult at: 'resultType' put: 'complete'].
 						executionError return: errorResult].
-	(self isModernContext: requestContext orParams: parameters)
+	(self isModernContext: effectiveContext orParams: parameters)
 		ifTrue: [| type |
 			type := normalized at: 'resultType' ifAbsent: [nil].
 			(type = 'input_required' or: [type = 'inputRequired'])
@@ -1671,7 +1671,7 @@ McpServer >> toolsCall: parameters context: requestContext [
 									method: 'tools/call'
 									target: toolName
 									arguments: arguments
-									principal: (requestContext ifNotNil: [:ctx | ctx principal]))]]
+									principal: effectiveContext principal)]]
 				ifFalse: [normalized at: 'resultType' put: 'complete']].
 	self validateToolResult: normalized for: tool.
 	^self detachedProtocolValue: normalized
@@ -1744,20 +1744,26 @@ McpServer >> validatePromptArguments: argumentValues for: aPrompt [
 	 Answers:
 		<McpServer> the receiver."
 
-	| definitions declaredNames |
+	| definitions declaredNames resolverNames |
 
 	definitions := aPrompt arguments ifNil: [#()].
+	resolverNames :=
+		(aPrompt respondsTo: #resolvers)
+			ifTrue: [(aPrompt resolvers collect: [:each | each name]) asSet]
+			ifFalse: [Set new].
 	declaredNames := Set new.
 	definitions do: [:definition | | argumentName required |
 		argumentName := definition at: 'name'.
 		declaredNames add: argumentName.
 		required := definition at: 'required' ifAbsent: [false].
-		(required and: [(argumentValues includesKey: argumentName) not])
-			ifTrue: [
-				McpJsonRpcError
-					signalCode: McpJsonRpcInvalidParamsCode
-					message: 'Missing required prompt argument: ' , argumentName
-					data: nil]].
+		(required
+			and: [(argumentValues includesKey: argumentName) not
+			and: [(resolverNames includes: argumentName) not]])
+				ifTrue: [
+					McpJsonRpcError
+						signalCode: McpJsonRpcInvalidParamsCode
+						message: 'Missing required prompt argument: ' , argumentName
+						data: nil]].
 	argumentValues keysAndValuesDo: [:key :value |
 		(key isString and: [value isString])
 			ifFalse: [

@@ -31,23 +31,37 @@ TestMcpToolResolvers >> tearDown [
 
 { #category : 'Testing' }
 TestMcpToolResolvers >> testClientAnswersElicitResolver [
-	"Verify client drives multi-round-trip loop when resolver requests input."
+	"Verify client drives multi-round-trip loop when resolver requests input with an explicit schema."
 
-	| tool result |
+	| tool elicitSchema result |
 
+	elicitSchema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with: 'quantity' -> (EsOrderedDictionary with: 'type' -> 'integer'));
+			at: 'required' put: #('quantity');
+			yourself.
 	tool :=
 		McpBlockTool new
 			name: 'ask_qty';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
 			resolve: 'quantity'
-				with: [:ctx :args | McpElicit message: 'How many?'];
-			block: [:args | | qty |
-				qty := (args at: 'quantity' ifAbsent: [EsOrderedDictionary new]) at: 'content' ifAbsent: [args at: 'quantity'].
+				with: [:ctx :args | McpElicit message: 'How many?' schema: elicitSchema];
+			block: [:args | | resp content qty |
+				resp := args at: 'quantity' ifAbsent: [EsOrderedDictionary new].
+				content := resp at: 'content' ifAbsent: [EsOrderedDictionary new].
+				qty := content at: 'quantity'.
 				'Ordered ' , qty printString];
 			yourself.
 	server toolRegistry registerTool: tool.
 
-	client elicitationCallback: [:request :name | EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 7].
+	client elicitationCallback: [:request :cl |
+		EsOrderedDictionary
+			with: 'action' -> 'accept'
+			with: 'content' -> (EsOrderedDictionary with: 'quantity' -> 7)].
 	result := client callTool: 'ask_qty' arguments: EsOrderedDictionary new.
 
 	self assert: (result at: 'isError') equals: false.
@@ -55,16 +69,103 @@ TestMcpToolResolvers >> testClientAnswersElicitResolver [
 ]
 
 { #category : 'Testing' }
+TestMcpToolResolvers >> testClientAppliesElicitationSchemaDefaults [
+	"Verify McpClient pre-populates missing content fields from requestedSchema property defaults on accept."
+
+	| schema wire response content |
+
+	schema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with:
+							'name' -> (
+								EsOrderedDictionary
+									with: 'type' -> 'string'
+									with: 'default' -> 'DefaultName')
+						with:
+							'count' -> (
+								EsOrderedDictionary
+									with: 'type' -> 'integer'
+									with: 'default' -> 42));
+			yourself.
+	wire := (McpElicit message: 'Provide defaults' schema: schema) asInputRequest.
+	client elicitationCallback: [:req :c |
+		EsOrderedDictionary
+			with: 'action' -> 'accept'
+			with: 'content' -> (EsOrderedDictionary with: 'count' -> 10)].
+
+	response := client perform: #dispatchInputRequest:named: with: wire with: 'defaults'.
+	content := response at: 'content'.
+	self assert: (content at: 'name') equals: 'DefaultName'.
+	self assert: (content at: 'count') equals: 10
+]
+
+{ #category : 'Testing' }
+TestMcpToolResolvers >> testClientRejectsElicitationWithoutRequestedSchema [
+	"Verify McpClient validates requestedSchema on incoming elicitation/create requests."
+
+	| badRequest |
+
+	client elicitationCallback: [:req :c |
+		EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> EsOrderedDictionary new].
+	badRequest :=
+		EsOrderedDictionary new
+			at: 'method' put: 'elicitation/create';
+			at: 'params' put: (EsOrderedDictionary with: 'message' -> 'Missing schema');
+			yourself.
+	self
+		should: [client perform: #dispatchInputRequest:named: with: badRequest with: 'test']
+		raise: McpJsonRpcError
+]
+
+{ #category : 'Testing' }
+TestMcpToolResolvers >> testElicitRejectsInvalidSchema [
+	"Verify McpElicit enforces a flat object schema with primitive/enum properties for form mode."
+
+	| nestedObjectSchema |
+
+	self should: [McpElicit message: 'Prompt' schema: nil] raise: Error.
+	self
+		should: [
+			McpElicit
+				message: 'Prompt'
+				schema: (EsOrderedDictionary with: 'type' -> 'string')]
+		raise: Error.
+	nestedObjectSchema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with: 'nested' -> (EsOrderedDictionary with: 'type' -> 'object'));
+			yourself.
+	self should: [McpElicit message: 'Prompt' schema: nestedObjectSchema] raise: Error
+]
+
+{ #category : 'Testing' }
 TestMcpToolResolvers >> testElicitResolverYieldsInputRequired [
-	"Verify resolver returning McpElicit yields InputRequiredResult when unhandled."
+	"Verify resolver returning McpElicit yields InputRequiredResult with its explicit requestedSchema."
 
-	| tool result |
+	| tool elicitSchema result req params schema props |
 
+	elicitSchema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with: 'age' -> (EsOrderedDictionary with: 'type' -> 'integer'));
+			at: 'required' put: #('age');
+			yourself.
 	tool :=
 		McpBlockTool new
 			name: 'ask_age';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
-			resolve: 'age' with: [:ctx :args | McpElicit message: 'What is your age?'];
+			resolve: 'age'
+				with: [:ctx :args | McpElicit message: 'What is your age?' schema: elicitSchema];
 			block: [:args | 'Age is ' , (args at: 'age') printString];
 			yourself.
 	server toolRegistry registerTool: tool.
@@ -77,8 +178,43 @@ TestMcpToolResolvers >> testElicitResolverYieldsInputRequired [
 				yourself).
 	self assert: (result at: 'resultType') equals: 'input_required'.
 	self assert: ((result at: 'inputRequests') includesKey: 'age').
-	self assert: (((result at: 'inputRequests') at: 'age') at: 'method') equals: 'elicitation/create'.
+	req := (result at: 'inputRequests') at: 'age'.
+	self assert: (req at: 'method') equals: 'elicitation/create'.
+	params := req at: 'params'.
+	self assert: (params at: 'mode') equals: 'form'.
+	schema := params at: 'requestedSchema' ifAbsent: [nil].
+	self assert: (schema isKindOf: KeyedCollection).
+	self assert: (schema at: 'type' ifAbsent: [nil]) equals: 'object'.
+	props := schema at: 'properties' ifAbsent: [nil].
+	self assert: ((props isKindOf: KeyedCollection) and: [props includesKey: 'age']).
 	self assert: (result at: 'requestState') notNil
+]
+
+{ #category : 'Testing' }
+TestMcpToolResolvers >> testElicitUrlModeRequest [
+	"Verify McpElicit URL mode produces a valid url-mode elicitation/create wire request."
+
+	| elicit wire params response |
+
+	elicit :=
+		McpElicit
+			message: 'Please provide your API key to continue.'
+			url: 'https://mcp.example.com/ui/set_api_key'.
+	self assert: elicit mode equals: 'url'.
+	self assert: elicit url equals: 'https://mcp.example.com/ui/set_api_key'.
+	self assert: elicit schema isNil.
+
+	wire := elicit asInputRequest.
+	self assert: (wire at: 'method') equals: 'elicitation/create'.
+	params := wire at: 'params'.
+	self assert: (params at: 'mode') equals: 'url'.
+	self assert: (params at: 'url') equals: 'https://mcp.example.com/ui/set_api_key'.
+	self assert: (params at: 'message') equals: 'Please provide your API key to continue.'.
+	self deny: (params includesKey: 'requestedSchema').
+
+	client elicitationCallback: [:req :c | EsOrderedDictionary with: 'action' -> 'accept'].
+	response := client perform: #dispatchInputRequest:named: with: wire with: 'api_key'.
+	self assert: (response at: 'action') equals: 'accept'
 ]
 
 { #category : 'Testing' }

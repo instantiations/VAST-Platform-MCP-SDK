@@ -182,8 +182,10 @@ callbacks:
 
 ```smalltalk
 client elicitationCallback: [:request :aClient |
-    "Ask the user. Answer the content for the server."
-    'DISCOUNT2026'].
+    "Ask the user. Answer the content, matching params.requestedSchema."
+    EsOrderedDictionary
+        with: 'action' -> 'accept'
+        with: 'content' -> (EsOrderedDictionary with: 'code' -> 'DISCOUNT2026')].
 client samplingCallback: [:request :aClient | "call your LLM here" ].
 client rootsCallback: [:request :aClient | #() ].
 ```

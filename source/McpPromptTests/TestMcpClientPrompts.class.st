@@ -282,23 +282,38 @@ TestMcpClientPrompts >> testListPromptsReturnsDetachedDefinitions [
 TestMcpClientPrompts >> testMRTRPromptDriving [
 	"Client drives multi-round-trip retry when getPrompt answers input_required."
 
-	| inputRequired terminalResult result |
+	| inputRequired terminalResult result schema |
 
 	self connectWithPromptsCapability.
-	client elicitationCallback: [:req :c | EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'User choice'].
+	client elicitationCallback: [:req :c |
+		EsOrderedDictionary
+			with: 'action' -> 'accept'
+			with: 'content' -> (EsOrderedDictionary with: 'choice' -> 'User choice')].
+	schema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with: 'choice' -> (EsOrderedDictionary with: 'type' -> 'string'));
+			yourself.
 	inputRequired :=
 		EsOrderedDictionary new
 			at: 'resultType' put: 'input_required';
 			at: 'requestState' put: 'state-prompt-1';
 			at: 'inputRequests'
 				put: (
-					EsOrderedDictionary with:
-						'choice' -> (
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params'
-									put: (EsOrderedDictionary with: 'prompt' -> 'Select mode');
-								yourself));
+					EsOrderedDictionary
+						with:
+							'choice' -> (
+								EsOrderedDictionary new
+									at: 'method' put: 'elicitation/create';
+									at: 'params'
+										put: (
+											EsOrderedDictionary
+												with: 'message' -> 'Select mode'
+												with: 'requestedSchema' -> schema);
+									yourself));
 			yourself.
 	terminalResult := self textPromptResult: 'Final rendered prompt'.
 	transport enqueueResponse: inputRequired.
@@ -314,7 +329,10 @@ TestMcpClientPrompts >> testMRTRPromptDriving [
 	self assert: ((transport requests last at: 'params') at: 'requestState') equals: 'state-prompt-1'.
 	self
 		assert: (((transport requests last at: 'params') at: 'inputResponses') at: 'choice')
-		equals: (EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'User choice')
+		equals: (
+			EsOrderedDictionary
+				with: 'action' -> 'accept'
+				with: 'content' -> (EsOrderedDictionary with: 'choice' -> 'User choice'))
 ]
 
 { #category : 'Validation' }

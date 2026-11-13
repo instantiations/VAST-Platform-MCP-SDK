@@ -93,7 +93,8 @@ McpBlockPrompt >> completionBlock: aBlock [
 
 { #category : 'Execution' }
 McpBlockPrompt >> renderWithArguments: argumentValues context: requestContext [
-	"Render the prompt by evaluating the configured block.
+	"Render the prompt by evaluating the configured block,
+	 evaluating parameter resolvers and yielding InputRequiredResult when needed.
 
 	 The block may accept no arguments, argumentValues, or argumentValues and
 	 requestContext. Its arity is validated when the block is configured.
@@ -102,8 +103,39 @@ McpBlockPrompt >> renderWithArguments: argumentValues context: requestContext [
 		argumentValues - <KeyedCollection> validated prompt arguments.
 		requestContext - <McpServerRequestContext> or nil.
 	 Answers:
-		<KeyedCollection> MCP GetPromptResult."
+		<KeyedCollection> MCP GetPromptResult or InputRequiredResult."
+
+	| effectiveArgs inputResponses |
 
 	block ifNil: [self error: 'MCP prompt rendering block is not configured'].
-	^block cull: argumentValues cull: requestContext
+	effectiveArgs := argumentValues copy.
+	inputResponses := requestContext ifNotNil: [:ctx | ctx inputResponses].
+
+	self resolvers do: [:resolver | | paramName resolved existing |
+		paramName := resolver name.
+		(inputResponses notNil and: [inputResponses includesKey: paramName])
+			ifTrue: [| resp |
+				resp := (inputResponses at: paramName) copy.
+				effectiveArgs at: paramName put: resp]
+			ifFalse: [
+				existing := effectiveArgs at: paramName ifAbsent: [nil].
+				(existing isNil or: [existing isString and: [existing isEmpty]])
+					ifTrue: [
+						resolved := resolver resolveInContext: requestContext arguments: effectiveArgs.
+						((resolved isKindOf: McpElicit)
+							or: [(resolved isKindOf: McpSample) or: [resolved isKindOf: McpListRoots]])
+								ifTrue: [| inputRequired |
+									inputRequired :=
+										EsOrderedDictionary new
+											at: 'resultType' put: 'input_required';
+											at: 'inputRequests'
+												put: (
+													EsOrderedDictionary
+														with: paramName -> resolved asInputRequest);
+											at: 'requestState' put: paramName;
+											yourself.
+									^inputRequired].
+						effectiveArgs at: paramName put: resolved]]].
+
+	^block cull: effectiveArgs cull: requestContext
 ]

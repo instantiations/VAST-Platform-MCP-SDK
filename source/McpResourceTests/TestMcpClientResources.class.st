@@ -284,23 +284,38 @@ TestMcpClientResources >> testListResourcesReturnsDetachedDefinitions [
 TestMcpClientResources >> testMRTRResourceDriving [
 	"Client drives multi-round-trip retry when readResource answers input_required."
 
-	| inputRequired terminalResult result |
+	| inputRequired terminalResult result schema |
 
 	self connectWithResourcesCapability.
-	client elicitationCallback: [:req :c | EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'Access token'].
+	client elicitationCallback: [:req :c |
+		EsOrderedDictionary
+			with: 'action' -> 'accept'
+			with: 'content' -> (EsOrderedDictionary with: 'token' -> 'Access token')].
+	schema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with: 'token' -> (EsOrderedDictionary with: 'type' -> 'string'));
+			yourself.
 	inputRequired :=
 		EsOrderedDictionary new
 			at: 'resultType' put: 'input_required';
 			at: 'requestState' put: 'state-resource-1';
 			at: 'inputRequests'
 				put: (
-					EsOrderedDictionary with:
-						'auth' -> (
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params'
-									put: (EsOrderedDictionary with: 'prompt' -> 'Enter token');
-								yourself));
+					EsOrderedDictionary
+						with:
+							'auth' -> (
+								EsOrderedDictionary new
+									at: 'method' put: 'elicitation/create';
+									at: 'params'
+										put: (
+											EsOrderedDictionary
+												with: 'message' -> 'Enter token'
+												with: 'requestedSchema' -> schema);
+									yourself));
 			yourself.
 	terminalResult := self textReadResultUri: 'test://resources/protected' text: 'Secret content'.
 	transport enqueueResponse: inputRequired.
@@ -316,7 +331,10 @@ TestMcpClientResources >> testMRTRResourceDriving [
 		equals: 'state-resource-1'.
 	self
 		assert: (((transport requests last at: 'params') at: 'inputResponses') at: 'auth')
-		equals: (EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> 'Access token')
+		equals: (
+			EsOrderedDictionary
+				with: 'action' -> 'accept'
+				with: 'content' -> (EsOrderedDictionary with: 'token' -> 'Access token'))
 ]
 
 { #category : 'Validation' }

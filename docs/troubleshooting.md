@@ -49,13 +49,24 @@ Tool failures aren't JSON-RPC errors: they arrive as results with
 
 **`Server exceeded maximum inputRequired rounds: 10`**
 : The server kept answering `input_required`. Check that the matching
-callback is installed and answers what the server expects, and that the tool
-has at most one resolver (see
+callback is installed and answers what the server expects (see
 [Interactive input](advanced/mrtr-interactive-input.md)).
 
 **`No client elicitationCallback registered for input request: ...`**
 : The server asked for input that the client can't provide. Install the
-callback, and declare the capability in `capabilities:`.
+callback. For sampling and roots, also declare the capability in
+`capabilities:`.
+
+**`McpElicit requires a nonempty message string`** (or another `McpElicit ...` error)
+: Form-mode elicitations need a flat object schema with primitive or enum
+properties; URL-mode elicitations need an absolute URL. Use
+`McpElicit message:schema:` or `McpElicit message:url:`; there is no
+`McpElicit message:` without a schema.
+
+**`Invalid elicitation/create request: ...`**
+: The client rejected a malformed elicitation from the server, e.g. a form
+without an object `requestedSchema` or a URL-mode request that also carries a
+schema.
 
 **`Failed to configure the SST HTTP listener` / `Failed to start the SST HTTP server`**
 : The port is probably in use, possibly by an earlier `McpHttpServer` that is

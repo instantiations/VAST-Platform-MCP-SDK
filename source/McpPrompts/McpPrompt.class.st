@@ -23,7 +23,8 @@ Class {
 		'description',
 		'arguments',
 		'icons',
-		'meta'
+		'meta',
+		'resolvers'
 	],
 	#category : 'McpPrompts'
 }
@@ -248,6 +249,34 @@ McpPrompt >> renderWithArguments: argumentValues context: requestContext [
 		<KeyedCollection> MCP GetPromptResult."
 
 	self subclassResponsibility
+]
+
+{ #category : 'Registration' }
+McpPrompt >> resolve: aParameterName with: aBlock [
+	"Register a parameter resolver for aParameterName.
+
+	 Arguments:
+		aParameterName - <String> parameter name to dynamically resolve.
+		aBlock - <Block> [:context :arguments | ...] resolver block.
+	 Answers:
+		<McpPrompt> the receiver."
+
+	| resolver |
+
+	resolver := McpResolver named: aParameterName block: aBlock.
+	self resolvers add: resolver.
+	^self
+]
+
+{ #category : 'Accessing' }
+McpPrompt >> resolvers [
+	"Answer the collection of parameter resolvers configured on this prompt.
+
+	 Answers:
+		<OrderedCollection> of <McpResolver>."
+
+	resolvers ifNil: [resolvers := OrderedCollection new].
+	^resolvers
 ]
 
 { #category : 'Accessing' }

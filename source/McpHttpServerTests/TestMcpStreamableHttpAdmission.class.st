@@ -769,6 +769,74 @@ TestMcpStreamableHttpAdmission >> testJsonContentTypeAllowsCaseAndParameters [
 	self deny: body isEmpty
 ]
 
+{ #category : 'Protocol Operations' }
+TestMcpStreamableHttpAdmission >> testLegacyStreamableHttpUrlModeElicitationIncludesElicitationId [
+	"Verify that a URL-mode McpElicit on a legacy Streamable HTTP session streams an
+	 elicitation/create request containing elicitationId and completes once resolved."
+
+	| tool session message request streamBlock frames connection elicitMsg elicitParams srvReqId finalMsg |
+
+	tool :=
+		McpBlockTool new
+			name: 'connect.account';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			resolve: 'auth'
+				with: [:ctx :args |
+					McpElicit
+						message: 'Authorize your account'
+						url: 'https://example.com/oauth/authorize'];
+			block: [:args | | resp |
+				resp := args at: 'auth' ifAbsent: [EsOrderedDictionary new].
+				(resp at: 'action' ifAbsent: ['cancel']) = 'accept'
+					ifTrue: ['Connected']
+					ifFalse: ['Cancelled']];
+			yourself.
+	protocolServer toolRegistry registerTool: tool.
+
+	session := self readySessionId: 400.
+	message := self toolCallMessageNamed: 'connect.account' arguments: EsOrderedDictionary new id: 401.
+	request := self requestForMessage: message session: session.
+	streamBlock := transport handlePostRequest: request.
+
+	self assert: request header responseHeader status equals: '200 OK'.
+	self assert: streamBlock isBlock.
+
+	frames := OrderedCollection new.
+	connection := TestMcpDeliveryConnection new.
+	connection writeAction: [:bytes | | events parsed |
+		events := McpSseParser new parse: bytes asString.
+		events do: [:ev |
+			parsed := McpJSONReader fromString: ev data.
+			frames add: parsed.
+			(parsed at: 'method' ifAbsent: [nil]) = 'elicitation/create'
+				ifTrue: [| reqId reply |
+					reqId := parsed at: 'id'.
+					reply :=
+						EsOrderedDictionary new
+							at: 'jsonrpc' put: '2.0';
+							at: 'id' put: reqId;
+							at: 'result' put: (EsOrderedDictionary with: 'action' -> 'accept');
+							yourself.
+					session resolvePendingRequest: reqId with: reply]]].
+
+	streamBlock value: connection.
+
+	self assert: frames size equals: 2.
+	elicitMsg := frames first.
+	self assert: (elicitMsg at: 'method') equals: 'elicitation/create'.
+	srvReqId := elicitMsg at: 'id'.
+	elicitParams := elicitMsg at: 'params'.
+	self assert: (elicitParams at: 'mode') equals: 'url'.
+	self assert: (elicitParams at: 'url') equals: 'https://example.com/oauth/authorize'.
+	self assert: (elicitParams at: 'message') equals: 'Authorize your account'.
+	self assert: (elicitParams at: 'elicitationId') equals: srvReqId.
+	self deny: (elicitParams includesKey: 'requestedSchema').
+
+	finalMsg := frames second.
+	self assert: (finalMsg at: 'id') equals: 401.
+	self assert: (((finalMsg at: 'result') at: 'content') first at: 'text') equals: 'Connected'
+]
+
 { #category : 'Parsing' }
 TestMcpStreamableHttpAdmission >> testMalformedJsonReturnsCanonicalParseError [
 	"Malformed JSON produces the canonical JSON-RPC parse error."

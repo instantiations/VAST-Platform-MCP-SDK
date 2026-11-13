@@ -614,6 +614,11 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 		(parsedRequest isKindOf: KeyedCollection)
 			ifTrue: [parsedRequest at: 'method' ifAbsent: [nil]]
 			ifFalse: [nil].
+	(method isNil
+		and: [(parsedRequest isKindOf: KeyedCollection) and: [parsedRequest includesKey: 'id']])
+			ifTrue: [
+				(session resolvePendingRequest: (parsedRequest at: 'id') with: parsedRequest)
+					ifTrue: [^self formatAcceptedResponseFor: aRequest]].
 	requestContext := self requestContextFor: aRequest session: session.
 	(session isInitializing and: [method = 'notifications/initialized'])
 		ifTrue: [
@@ -672,6 +677,22 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 					session: session]].
 
 	dispatcherResponse := self dispatcher dispatch: parsedRequest context: requestContext.
+	((self isInputRequiredResponse: dispatcherResponse)
+		and: [((session clientInfo at: 'name' ifAbsent: ['']) ~= 'VastMcpClient')
+			and: [self acceptHeader: accept includesMediaType: 'text/event-stream']])
+				ifTrue: [
+					aRequest header responseHeader
+						status: '200 OK';
+						contentType: 'text/event-stream; charset=utf-8';
+						at: 'Cache-Control' put: 'no-cache';
+						at: 'Connection' put: 'keep-alive'.
+					^[:connection |
+						self
+							streamBidirectionalInputRequired: dispatcherResponse
+							forRequest: parsedRequest
+							on: connection
+							request: aRequest
+							session: session]].
 	dispatcherResponse ifNil: [^self formatAcceptedResponseFor: aRequest].
 	^self formatSuccessResponseFor: aRequest payload: dispatcherResponse
 ]
@@ -712,6 +733,19 @@ McpStreamableHttpTransport >> isInitializeRequest: parsedRequest [
 
 	^(parsedRequest isKindOf: KeyedCollection)
 		and: [(parsedRequest at: 'method' ifAbsent: [nil]) = 'initialize']
+]
+
+{ #category : 'Testing',
+  #vaVisibility : 'private' }
+McpStreamableHttpTransport >> isInputRequiredResponse: aResponse [
+	"Answer whether a dispatcher response wraps an SEP-2322 InputRequiredResult."
+
+	| res rt |
+	(aResponse isKindOf: KeyedCollection) ifFalse: [^false].
+	res := aResponse at: 'result' ifAbsent: [nil].
+	(res isKindOf: KeyedCollection) ifFalse: [^false].
+	rt := res at: 'resultType' ifAbsent: [nil].
+	^rt = 'input_required' or: [rt = 'inputRequired']
 ]
 
 { #category : 'Session Management',
@@ -1010,6 +1044,126 @@ McpStreamableHttpTransport >> startSessionMaintenance [
 
 { #category : 'Message Handling',
   #vaVisibility : 'private' }
+McpStreamableHttpTransport >> streamBidirectionalInputRequired: initialResponse
+	forRequest: parsedRequest
+	on: connection
+	request: aRequest
+	session: session [
+	"Bridge SEP-2322 input_required responses to 2025-06-18 bidirectional SSE server-to-client requests."
+
+	| currentResponse lf streamMutex rounds retryRequest params accumulatedResponses keepAliveProcess keepAliveActive retryContext |
+
+	lf := String with: Character lf.
+	streamMutex := Semaphore forMutualExclusion.
+	currentResponse := initialResponse.
+	rounds := 0.
+	accumulatedResponses := EsOrderedDictionary new.
+	keepAliveActive := true.
+	keepAliveProcess := [
+		[keepAliveActive] whileTrue: [
+			(Delay forSeconds: 2) wait.
+			keepAliveActive ifTrue: [
+				(connection respondsTo: #lastUse:)
+					ifTrue: [[connection lastUse: Time millisecondClockValue] on: Error do: [:e | nil]]]]
+	] forkAt: Processor userBackgroundPriority.
+
+	[
+		[
+			(self isInputRequiredResponse: currentResponse) and: [rounds < 10]
+		] whileTrue: [
+			| resultObj inputRequests requestState |
+			rounds := rounds + 1.
+			resultObj := currentResponse at: 'result'.
+			inputRequests := resultObj at: 'inputRequests' ifAbsent: [EsOrderedDictionary new].
+			requestState := resultObj at: 'requestState' ifAbsent: [nil].
+
+			inputRequests keysAndValuesDo: [:reqKey :reqSpec |
+				| srvReqId pendingAssoc reqParams srvRequest frame clientReply replyResult |
+				srvReqId := 'elicit-' , UUID new asString.
+				pendingAssoc := session registerPendingRequest: srvReqId.
+				reqParams := (reqSpec at: 'params' ifAbsent: [EsOrderedDictionary new]) copy.
+				((reqSpec at: 'method' ifAbsent: [nil]) = 'elicitation/create'
+					and: [(reqParams at: 'mode' ifAbsent: [nil]) = 'url'
+						and: [(reqParams includesKey: 'elicitationId') not]])
+							ifTrue: [reqParams at: 'elicitationId' put: srvReqId].
+				srvRequest := EsOrderedDictionary new
+					at: 'jsonrpc' put: '2.0';
+					at: 'id' put: srvReqId;
+					at: 'method' put: (reqSpec at: 'method');
+					at: 'params' put: reqParams;
+					yourself.
+				frame := 'event: message' , lf , 'data: ' ,
+					(String streamContents: [:s | (McpJSONWriter on: s) nextPut: srvRequest]) , lf , lf.
+				[
+					streamMutex critical: [
+						(connection respondsTo: #lastUse:)
+							ifTrue: [connection lastUse: Time millisecondClockValue].
+						connection stream
+							nextPutAll: frame asUtf8Bytes asString;
+							flush]
+				] on: Error do: [:e | ^nil].
+
+				pendingAssoc key wait.
+				(connection respondsTo: #lastUse:)
+					ifTrue: [connection lastUse: Time millisecondClockValue].
+				clientReply := pendingAssoc value.
+				replyResult := (clientReply isKindOf: KeyedCollection)
+					ifTrue: [
+						clientReply at: 'result' ifAbsent: [
+							EsOrderedDictionary with: 'action' -> 'cancel']]
+					ifFalse: [EsOrderedDictionary with: 'action' -> 'cancel'].
+				accumulatedResponses at: reqKey put: replyResult].
+
+			retryRequest := parsedRequest copy.
+			params := (parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new]) copy.
+			params at: 'inputResponses' put: accumulatedResponses copy.
+			requestState ifNotNil: [params at: 'requestState' put: requestState].
+			retryRequest at: 'params' put: params.
+
+			retryContext := self requestContextFor: aRequest session: session.
+			retryContext progressReporter: [:progressParams | | notifFrame notifMsg |
+				notifMsg :=
+					EsOrderedDictionary new
+						at: 'jsonrpc' put: '2.0';
+						at: 'method' put: 'notifications/progress';
+						at: 'params' put: progressParams;
+						yourself.
+				notifFrame :=
+					'event: message' , lf , 'data: ' , (
+						String streamContents: [:s | (McpJSONWriter on: s) nextPut: notifMsg]) , lf , lf.
+				[
+					streamMutex critical: [
+						(connection respondsTo: #lastUse:)
+							ifTrue: [connection lastUse: Time millisecondClockValue].
+						connection stream
+							nextPutAll: notifFrame asUtf8Bytes asString;
+							flush]
+				] on: Error do: [:e | nil]].
+
+			currentResponse := self dispatcher
+				dispatch: retryRequest
+				context: retryContext].
+
+		currentResponse ifNotNil: [
+			| finalFrame |
+			finalFrame := 'event: message' , lf , 'data: ' ,
+				(String streamContents: [:s | (McpJSONWriter on: s) nextPut: currentResponse]) , lf , lf.
+			[
+				streamMutex critical: [
+					(connection respondsTo: #lastUse:)
+						ifTrue: [connection lastUse: Time millisecondClockValue].
+					connection stream
+						nextPutAll: finalFrame asUtf8Bytes asString;
+						flush]
+			] on: Error do: [:e | nil]]
+	] ensure: [
+		keepAliveActive := false.
+		keepAliveProcess ifNotNil: [keepAliveProcess terminate]].
+	^nil
+]
+
+{ #category : 'Message Handling',
+  #vaVisibility : 'private' }
 McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: connection request: aRequest [
 	"Stream subscriptions/listen SSE frames and forward subscriptionBus events.
 
@@ -1111,6 +1265,8 @@ McpStreamableHttpTransport >> streamSubscriptionsListen: parsedRequest on: conne
   #vaVisibility : 'private' }
 McpStreamableHttpTransport >> streamToolCallWithProgress: parsedRequest on: connection request: aRequest session: sessionOrNil [
 	"Stream SSE progress notifications and final response for a tool call.
+	 If the tool yields an SEP-2322 input_required result on a legacy session,
+	 delegate to the bidirectional SSE input_required bridge.
 
 	 Arguments:
 		parsedRequest - <KeyedCollection> decoded JSON-RPC request.
@@ -1127,6 +1283,8 @@ McpStreamableHttpTransport >> streamToolCallWithProgress: parsedRequest on: conn
 
 	[
 		streamMutex critical: [
+			(connection respondsTo: #lastUse:)
+				ifTrue: [connection lastUse: Time millisecondClockValue].
 			connection stream
 				nextPutAll: (':' , lf , lf) asUtf8Bytes asString;
 				flush]
@@ -1149,6 +1307,8 @@ McpStreamableHttpTransport >> streamToolCallWithProgress: parsedRequest on: conn
 				String streamContents: [:s | (McpJSONWriter on: s) nextPut: notifMsg]) , lf , lf.
 		[
 			streamMutex critical: [
+				(connection respondsTo: #lastUse:)
+					ifTrue: [connection lastUse: Time millisecondClockValue].
 				connection stream
 					nextPutAll: notifFrame asUtf8Bytes asString;
 					flush]
@@ -1157,12 +1317,25 @@ McpStreamableHttpTransport >> streamToolCallWithProgress: parsedRequest on: conn
 	dispatcherResponse :=
 		self dispatcher dispatch: parsedRequest context: requestContext.
 
+	((self isInputRequiredResponse: dispatcherResponse)
+		and: [sessionOrNil notNil
+			and: [(sessionOrNil clientInfo at: 'name' ifAbsent: ['']) ~= 'VastMcpClient']])
+				ifTrue: [
+					^self
+						streamBidirectionalInputRequired: dispatcherResponse
+						forRequest: parsedRequest
+						on: connection
+						request: aRequest
+						session: sessionOrNil].
+
 	dispatcherResponse ifNotNil: [| respFrame |
 		respFrame :=
 			'event: message' , lf , 'data: ' , (
 				String streamContents: [:s | (McpJSONWriter on: s) nextPut: dispatcherResponse]) , lf , lf.
 		[
 			streamMutex critical: [
+				(connection respondsTo: #lastUse:)
+					ifTrue: [connection lastUse: Time millisecondClockValue].
 				connection stream
 					nextPutAll: respFrame asUtf8Bytes asString;
 					flush]

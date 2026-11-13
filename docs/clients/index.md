@@ -35,9 +35,11 @@ client
         yourself).
 ```
 
-Installing an `elicitationCallback:`, `samplingCallback:` or `rootsCallback:`
-does **not** advertise the matching capability automatically. Declare it in
-`capabilities:` as well, so that servers know they may ask.
+Installing an `elicitationCallback:` advertises the `elicitation` capability
+(with both `form` and `url` modes) unless you declared `elicitation` yourself.
+A `samplingCallback:` or `rootsCallback:` does **not** advertise the matching
+capability automatically. Declare it in `capabilities:` as well, so that
+servers know they may ask.
 
 In modern mode, `clientInfo`, `capabilities` and the protocol version are
 attached to every request's `params._meta` (`io.modelcontextprotocol/clientInfo`,
