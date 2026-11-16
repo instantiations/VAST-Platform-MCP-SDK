@@ -678,21 +678,20 @@ McpStreamableHttpTransport >> handleSessionMessage: parsedRequest request: aRequ
 
 	dispatcherResponse := self dispatcher dispatch: parsedRequest context: requestContext.
 	((self isInputRequiredResponse: dispatcherResponse)
-		and: [((session clientInfo at: 'name' ifAbsent: ['']) ~= 'VastMcpClient')
-			and: [self acceptHeader: accept includesMediaType: 'text/event-stream']])
-				ifTrue: [
-					aRequest header responseHeader
-						status: '200 OK';
-						contentType: 'text/event-stream; charset=utf-8';
-						at: 'Cache-Control' put: 'no-cache';
-						at: 'Connection' put: 'keep-alive'.
-					^[:connection |
-						self
-							streamBidirectionalInputRequired: dispatcherResponse
-							forRequest: parsedRequest
-							on: connection
-							request: aRequest
-							session: session]].
+		and: [self acceptHeader: accept includesMediaType: 'text/event-stream'])
+			ifTrue: [
+				aRequest header responseHeader
+					status: '200 OK';
+					contentType: 'text/event-stream; charset=utf-8';
+					at: 'Cache-Control' put: 'no-cache';
+					at: 'Connection' put: 'keep-alive'.
+				^[:connection |
+					self
+						streamBidirectionalInputRequired: dispatcherResponse
+						forRequest: parsedRequest
+						on: connection
+						request: aRequest
+						session: session]].
 	dispatcherResponse ifNil: [^self formatAcceptedResponseFor: aRequest].
 	^self formatSuccessResponseFor: aRequest payload: dispatcherResponse
 ]
@@ -1318,15 +1317,14 @@ McpStreamableHttpTransport >> streamToolCallWithProgress: parsedRequest on: conn
 		self dispatcher dispatch: parsedRequest context: requestContext.
 
 	((self isInputRequiredResponse: dispatcherResponse)
-		and: [sessionOrNil notNil
-			and: [(sessionOrNil clientInfo at: 'name' ifAbsent: ['']) ~= 'VastMcpClient']])
-				ifTrue: [
-					^self
-						streamBidirectionalInputRequired: dispatcherResponse
-						forRequest: parsedRequest
-						on: connection
-						request: aRequest
-						session: sessionOrNil].
+		and: [sessionOrNil notNil])
+			ifTrue: [
+				^self
+					streamBidirectionalInputRequired: dispatcherResponse
+					forRequest: parsedRequest
+					on: connection
+					request: aRequest
+					session: sessionOrNil].
 
 	dispatcherResponse ifNotNil: [| respFrame |
 		respFrame :=

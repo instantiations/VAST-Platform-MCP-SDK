@@ -787,6 +787,61 @@ TestMcpVastInterop >> testVastLegacyClientConnectsToVastStdioServer [
 
 ]
 
+{ #category : 'Integration Tests' }
+TestMcpVastInterop >> testVastLegacyHttpBidirectionalElicitation [
+	"Live end-to-end: Legacy Streamable HTTP client handles bidirectional SSE elicitation/create."
+
+	| mcpServer tool elicitSchema httpServer client result |
+
+	mcpServer :=
+		McpServer new
+			name: 'VastLegacyHttpElicitServer';
+			version: '1.0.0';
+			yourself.
+	elicitSchema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with: 'quantity' -> (EsOrderedDictionary with: 'type' -> 'integer'));
+			at: 'required' put: #('quantity');
+			yourself.
+	tool :=
+		McpBlockTool new
+			name: 'request_qty';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			resolve: 'quantity'
+				with: [:ctx :args | McpElicit message: 'How many items?' schema: elicitSchema];
+			block: [:args | | resp content qty |
+				resp := args at: 'quantity' ifAbsent: [EsOrderedDictionary new].
+				content := resp at: 'content' ifAbsent: [EsOrderedDictionary new].
+				qty := content at: 'quantity'.
+				'Processed ' , qty printString , ' items'];
+			yourself.
+	mcpServer toolRegistry registerTool: tool.
+
+	httpServer :=
+		McpHttpServer new
+			port: 8917;
+			mcpServer: mcpServer;
+			start.
+	servers add: httpServer.
+
+	client := McpClient legacy.
+	client transport: (McpHttpClientTransport url: 'http://127.0.0.1:8917/mcp').
+	client elicitationCallback: [:req :c |
+		EsOrderedDictionary
+			with: 'action' -> 'accept'
+			with: 'content' -> (EsOrderedDictionary with: 'quantity' -> 15)].
+	clients add: client.
+	client connect.
+
+	result := client callTool: 'request_qty' arguments: EsOrderedDictionary new.
+	self assert: (result at: 'isError') equals: false.
+	self assert: (((result at: 'content') first at: 'text') equals: 'Processed 15 items')
+]
+
 { #category : 'Testing' }
 TestMcpVastInterop >> testVastLegacyHttpCloseIsIdempotent [
 	"Run the CloseIsIdempotent scenario using LegacyHttp."
