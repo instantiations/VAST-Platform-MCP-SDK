@@ -251,6 +251,95 @@ McpHttpClientTransport >> configuredHttpClientFor: endpointUrl [
 
 ]
 
+{ #category : 'Parsing',
+  #vaVisibility : 'private' }
+McpHttpClientTransport >> consumeSseStreamResponse: response id: requestId [
+	"Stream SSE events incrementally from response inputStream, dispatching server requests
+	 and notifications in real time and returning the correlated JSON-RPC response.
+
+	 Arguments:
+		response - <SstStreamedByteMessage> streaming HTTP response.
+		requestId - <String> or <Number> expected request identifier.
+	 Answers:
+		<KeyedCollection> matching JSON-RPC response."
+
+	| stream parser receiveBuffer totalBytes matchingResponse streamError doneSem isDone subscription |
+
+	stream := response inputStream.
+	parser := McpSseParser new.
+	receiveBuffer := #[].
+	totalBytes := 0.
+	matchingResponse := nil.
+	streamError := nil.
+	doneSem := Semaphore new.
+	isDone := false.
+
+	subscription :=
+		stream
+			listen: [:chunk | | chunkBytes |
+				chunkBytes := chunk asByteArray.
+				totalBytes := totalBytes + chunkBytes size.
+				totalBytes > (10 * 1024 * 1024)
+					ifTrue: [
+						streamError ifNil: [streamError := Error new messageText: 'Response body exceeded maximum size'].
+						isDone ifFalse: [
+							isDone := true.
+							doneSem signal]]
+					ifFalse: [
+						[
+							receiveBuffer :=
+								parser
+									parseAvailableBytes: (receiveBuffer , chunkBytes)
+									do: [:event |
+										event data isEmpty
+											ifFalse: [| parsed isResponse isServerRequest |
+												parsed := McpJSONReader fromString: event data.
+												(parsed isKindOf: KeyedCollection)
+													ifFalse: [self error: 'Invalid SSE message: expected an object'].
+												(parsed at: 'jsonrpc' ifAbsent: [nil]) = '2.0'
+													ifFalse: [self error: 'Invalid SSE message: invalid jsonrpc version'].
+												isResponse :=
+													((parsed includesKey: 'result') = (parsed includesKey: 'error')) not.
+												(isResponse and: [(parsed at: 'id' ifAbsent: [nil]) = requestId])
+													ifTrue: [
+														matchingResponse
+															ifNotNil: [self error: 'Duplicate correlated SSE response'].
+														matchingResponse := parsed]
+													ifFalse: [
+														isServerRequest :=
+															(parsed includesKey: 'method') and: [parsed includesKey: 'id'].
+														isServerRequest
+															ifTrue: [
+																[self client ifNotNil: [:c | c handleIncomingMessage: parsed]] fork]
+															ifFalse: [
+																self client ifNotNil: [:c | c handleIncomingMessage: parsed]]]]]
+						] on: Error do: [:err |
+							streamError ifNil: [streamError := err].
+							isDone ifFalse: [
+								isDone := true.
+								doneSem signal]]]]
+			onError: [:err |
+				streamError ifNil: [streamError := err].
+				isDone ifFalse: [
+					isDone := true.
+					doneSem signal]]
+			onDone: [
+				isDone ifFalse: [
+					isDone := true.
+					doneSem signal]]
+			cancelOnError: false.
+
+	[doneSem wait]
+		ensure: [
+			subscription ifNotNil: [[subscription cancel] on: Error do: [:e | nil]]].
+	streamError ifNotNil: [
+		(streamError isKindOf: Exception)
+			ifTrue: [streamError pass]
+			ifFalse: [self error: 'SSE stream failed: ' , streamError printString]].
+	matchingResponse ifNil: [self error: 'No matching JSON-RPC response found in SSE stream'].
+	^matchingResponse
+]
+
 { #category : 'Execution',
   #vaVisibility : 'private' }
 McpHttpClientTransport >> doSendListenRequest: requestDictionary id: requestId headers: requestHeaders [
@@ -384,8 +473,8 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 	 Answers:
 		<Object> validated JSON-RPC result."
 
-	| jsonString responseOrError response resultDictionary result contentType allowRetry done headers
-	  isInitialize mediaType isJson |
+	| jsonString exchangeResult response resultDictionary result contentType allowRetry done headers
+	  isInitialize mediaType isJson status |
 
 	(requestDictionary isKindOf: KeyedCollection)
 		ifFalse: [self error: 'MCP request must be a keyed collection'].
@@ -425,23 +514,62 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 											putHeaderName: 'Mcp-Name'
 											value: (self encodeHeaderValue: u)
 											into: headers]]]]].
-		responseOrError :=
-			self withHttpClientDo: [:exchangeClient |
-				exchangeClient
-					post: jsonString asUtf8Bytes
-					typed: 'application/json'
-					at: self url
-					using: nil
-					withHeaders: headers].
-		response := self responseMessageFrom: responseOrError.
-		(response header statusCode between: 300 and: 399)
+		exchangeResult :=
+			self withHttpClientDo: [:exchangeClient | | responseOrError msg respStatus ct mt |
+				responseOrError :=
+					(exchangeClient respondsTo:
+						#createAndSendRequestFor:typed:using:withHeaders:templateMessage:data:assemblerPolicy:)
+							ifTrue: [
+								exchangeClient
+									createAndSendRequestFor: self url
+									typed: 'application/json'
+									using: nil
+									withHeaders: headers
+									templateMessage: exchangeClient templateHttpPOSTMessage copy
+									data: jsonString asUtf8Bytes
+									assemblerPolicy: (exchangeClient newAssemblerPolicy streamContents: true)]
+							ifFalse: [
+								exchangeClient
+									post: jsonString asUtf8Bytes
+									typed: 'application/json'
+									at: self url
+									using: nil
+									withHeaders: headers].
+				msg := self responseMessageFrom: responseOrError.
+				respStatus := msg header statusCode.
+				ct := msg header contentType.
+				mt := ct ifNotNil: [self baseMediaTypeFrom: ct].
+				(respStatus < 300
+					and: [mt = 'text/event-stream'
+					and: [(msg respondsTo: #inputStream) and: [msg inputStream notNil]]])
+						ifTrue: [
+							EsOrderedDictionary new
+								at: 'status' put: respStatus;
+								at: 'statusText' put: msg header status;
+								at: 'contentType' put: ct;
+								at: 'mediaType' put: mt;
+								at: 'response' put: msg;
+								at: 'parsedSse' put: (self consumeSseStreamResponse: msg id: requestId);
+								yourself]
+						ifFalse: [
+							EsOrderedDictionary new
+								at: 'status' put: respStatus;
+								at: 'statusText' put: msg header status;
+								at: 'contentType' put: ct;
+								at: 'mediaType' put: mt;
+								at: 'response' put: msg;
+								at: 'contents' put: msg contents;
+								yourself]].
+		status := exchangeResult at: 'status'.
+		response := exchangeResult at: 'response'.
+		(status between: 300 and: 399)
 			ifTrue: [self error: 'MCP HTTP redirect was not followed'].
-		contentType := response header contentType.
-		mediaType := contentType ifNotNil: [self baseMediaTypeFrom: contentType].
+		contentType := exchangeResult at: 'contentType'.
+		mediaType := exchangeResult at: 'mediaType'.
 		isJson := mediaType notNil and: [mediaType sameAs: 'application/json'].
-		response header statusCode >= 400
+		status >= 400
 			ifTrue: [
-				(response header statusCode = 404 and: [sessionID notNil and: [allowRetry]])
+				(status = 404 and: [sessionID notNil and: [allowRetry]])
 					ifTrue: [
 						sessionID := nil.
 						allowRetry := false.
@@ -456,17 +584,24 @@ McpHttpClientTransport >> doSendRequest: requestDictionary id: requestId headers
 								resultDictionary :=
 									[
 										self
-											parseResponse: response contents
+											parseResponse: (exchangeResult at: 'contents')
 											contentType: contentType
 											id: requestId]
 												on: Error
 												do: [:parseErr | nil].
 								resultDictionary ifNotNil: [
 									^self validatedResultFrom: resultDictionary id: requestId]].
-						self error: 'HTTP Error: ' , response header status]]
+						self error: 'HTTP Error: ' , (exchangeResult at: 'statusText')]]
 			ifFalse: [done := true]].
 	contentType ifNil: [self error: 'Missing Content-Type'].
-	resultDictionary := self parseResponse: response contents contentType: contentType id: requestId.
+	resultDictionary :=
+		(exchangeResult includesKey: 'parsedSse')
+			ifTrue: [exchangeResult at: 'parsedSse']
+			ifFalse: [
+				self
+					parseResponse: (exchangeResult at: 'contents')
+					contentType: contentType
+					id: requestId].
 	result := self validatedResultFrom: resultDictionary id: requestId.
 	isInitialize ifTrue: [self captureSessionFrom: response].
 	^result

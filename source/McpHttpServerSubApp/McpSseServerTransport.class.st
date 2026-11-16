@@ -48,6 +48,66 @@ McpSseServerTransport class >> new [
 	^super new initialize
 ]
 
+{ #category : 'Message Handling',
+  #vaVisibility : 'private' }
+McpSseServerTransport >> bridgeInputRequired: initialResponse forMessage: parsedMessage session: session [
+	"Bridge SEP-2322 input_required responses to 2025-06-18 bidirectional SSE server-to-client requests."
+
+	| currentResponse rounds retryRequest params pendingDict accumulatedResponses requestContext |
+	currentResponse := initialResponse.
+	rounds := 0.
+	pendingDict := session at: 'pendingRequests' ifAbsentPut: [Dictionary new].
+	accumulatedResponses := EsOrderedDictionary new.
+
+	[
+		(self isInputRequiredResponse: currentResponse) and: [rounds < 10]
+	] whileTrue: [
+		| resultObj inputRequests requestState |
+		rounds := rounds + 1.
+		resultObj := currentResponse at: 'result'.
+		inputRequests := resultObj at: 'inputRequests' ifAbsent: [EsOrderedDictionary new].
+		requestState := resultObj at: 'requestState' ifAbsent: [nil].
+
+		inputRequests keysAndValuesDo: [:reqKey :reqSpec |
+			| srvReqId pendingAssoc reqParams srvRequest clientReply replyResult |
+			srvReqId := 'elicit-' , UUID new asString.
+			pendingAssoc := Association key: Semaphore new value: nil.
+			pendingDict at: srvReqId put: pendingAssoc.
+			reqParams := (reqSpec at: 'params' ifAbsent: [EsOrderedDictionary new]) copy.
+			((reqSpec at: 'method' ifAbsent: [nil]) = 'elicitation/create'
+				and: [(reqParams at: 'mode' ifAbsent: [nil]) = 'url'
+					and: [(reqParams includesKey: 'elicitationId') not]])
+						ifTrue: [reqParams at: 'elicitationId' put: srvReqId].
+			srvRequest := EsOrderedDictionary new
+				at: 'jsonrpc' put: '2.0';
+				at: 'id' put: srvReqId;
+				at: 'method' put: (reqSpec at: 'method');
+				at: 'params' put: reqParams;
+				yourself.
+			self enqueueMessage: srvRequest forSession: session.
+			pendingAssoc key wait.
+			clientReply := pendingAssoc value.
+			replyResult := (clientReply isKindOf: KeyedCollection)
+				ifTrue: [
+					clientReply at: 'result' ifAbsent: [
+						EsOrderedDictionary with: 'action' -> 'cancel']]
+				ifFalse: [EsOrderedDictionary with: 'action' -> 'cancel'].
+			accumulatedResponses at: reqKey put: replyResult].
+
+		retryRequest := parsedMessage copy.
+		params := (parsedMessage at: 'params' ifAbsent: [EsOrderedDictionary new]) copy.
+		params at: 'inputResponses' put: accumulatedResponses copy.
+		requestState ifNotNil: [params at: 'requestState' put: requestState].
+		retryRequest at: 'params' put: params.
+
+		requestContext := McpServerRequestContext new.
+		requestContext sessionId: (session at: 'id' ifAbsent: [nil]).
+		currentResponse := self dispatcher dispatch: retryRequest context: requestContext].
+
+	currentResponse ifNotNil: [self enqueueMessage: currentResponse forSession: session].
+	^self
+]
+
 { #category : 'Starting and Stopping' }
 McpSseServerTransport >> close [
 	"Close all active sessions and release resources.
@@ -217,6 +277,7 @@ McpSseServerTransport >> handleDeleteSessionRequest: aRequest [
 McpSseServerTransport >> handlePostMessageRequest: aRequest [
 	"Process one client message posted to the SSE message endpoint.
 	 Dispatches requests and queues the response on the session's SSE stream.
+	 Bridges SEP-2322 input_required responses to 2025-06-18 bidirectional SSE server-to-client requests.
 	 Acknowledges client with HTTP 202 Accepted.
 
 	 Arguments:
@@ -224,7 +285,7 @@ McpSseServerTransport >> handlePostMessageRequest: aRequest [
 	 Answers:
 		<String> HTTP 202 Accepted response entity."
 
-	| validationResult sessionId session parsedMessage dispatcherResponse |
+	| validationResult sessionId session parsedMessage method pendingDict dispatcherResponse |
 
 	validationResult := self validateOriginFor: aRequest.
 	validationResult ifNotNil: [^validationResult].
@@ -256,11 +317,35 @@ McpSseServerTransport >> handlePostMessageRequest: aRequest [
 				contentLength: 0.
 			^''].
 
+	method := parsedMessage at: 'method' ifAbsent: [nil].
+	(method isNil and: [parsedMessage includesKey: 'id'])
+		ifTrue: [
+			pendingDict := session at: 'pendingRequests' ifAbsent: [nil].
+			pendingDict ifNotNil: [
+				(pendingDict removeKey: (parsedMessage at: 'id') asString ifAbsent: [nil])
+					ifNotNil: [:assoc |
+						assoc value: parsedMessage.
+						assoc key signal]].
+			aRequest header responseHeader
+				status: '202 Accepted';
+				at: 'Connection' put: 'keep-alive';
+				contentLength: 0.
+			^''].
+
 	(parsedMessage includesKey: 'id')
 		ifTrue: [
 			dispatcherResponse := self dispatcher dispatch: parsedMessage.
-			dispatcherResponse
-				ifNotNil: [self enqueueMessage: dispatcherResponse forSession: session]]
+			(self isInputRequiredResponse: dispatcherResponse)
+				ifTrue: [
+					[
+						self
+							bridgeInputRequired: dispatcherResponse
+							forMessage: parsedMessage
+							session: session]
+								fork]
+				ifFalse: [
+					dispatcherResponse
+						ifNotNil: [self enqueueMessage: dispatcherResponse forSession: session]]]
 		ifFalse: [self dispatcher dispatch: parsedMessage].
 
 	aRequest header responseHeader
@@ -328,6 +413,19 @@ McpSseServerTransport >> initialize [
 	sseEndpointPath := '/sse'.
 	maximumRequestSize := 4 * 1024 * 1024.
 	^self
+]
+
+{ #category : 'Testing',
+  #vaVisibility : 'private' }
+McpSseServerTransport >> isInputRequiredResponse: aResponse [
+	"Answer whether a dispatcher response wraps an SEP-2322 InputRequiredResult."
+
+	| res rt |
+	(aResponse isKindOf: KeyedCollection) ifFalse: [^false].
+	res := aResponse at: 'result' ifAbsent: [nil].
+	(res isKindOf: KeyedCollection) ifFalse: [^false].
+	rt := res at: 'resultType' ifAbsent: [nil].
+	^rt = 'input_required' or: [rt = 'inputRequired']
 ]
 
 { #category : 'Accessing' }
@@ -480,16 +578,26 @@ McpSseServerTransport >> streamSseSession: session on: connection initialPayload
 	 Answers:
 		nil."
 
-	| queueSem queueMutex queue lf bus busSubscription isClosed messagesToSend frame stream |
+	| queueSem queueMutex queue lf bus busSubscription isClosed messagesToSend frame stream keepAliveActive keepAliveProcess |
 
 	stream := connection stream.
 	lf := String with: Character lf.
 	queueSem := session at: 'queueSemaphore'.
 	queueMutex := session at: 'queueMutex'.
 	queue := session at: 'queue'.
+	keepAliveActive := true.
+	keepAliveProcess := [
+		[keepAliveActive] whileTrue: [
+			(Delay forSeconds: 2) wait.
+			keepAliveActive ifTrue: [
+				(connection respondsTo: #lastUse:)
+					ifTrue: [[connection lastUse: Time millisecondClockValue] on: Error do: [:e | nil]]]]
+	] forkAt: Processor userBackgroundPriority.
 
 	[
 		[
+			(connection respondsTo: #lastUse:)
+				ifTrue: [connection lastUse: Time millisecondClockValue].
 			stream
 				nextPutAll: endpointPayload asUtf8Bytes asString;
 				flush.
@@ -526,6 +634,8 @@ McpSseServerTransport >> streamSseSession: session on: connection initialPayload
 						'event: message' , lf , 'data: ' ,
 							(String streamContents: [:s | (McpJSONWriter on: s) nextPut: msg]) , lf ,
 							lf.
+					(connection respondsTo: #lastUse:)
+						ifTrue: [connection lastUse: Time millisecondClockValue].
 					stream nextPutAll: frame asUtf8Bytes asString].
 				messagesToSend isEmpty ifFalse: [stream flush].
 
@@ -538,6 +648,8 @@ McpSseServerTransport >> streamSseSession: session on: connection initialPayload
 								on: Error
 								do: [:err | self closeSession: session]]
 									ensure: [
+										keepAliveActive := false.
+										keepAliveProcess ifNotNil: [keepAliveProcess terminate].
 										bus ifNotNil: [
 											busSubscription
 												ifNotNil: [bus unsubscribe: busSubscription]].

@@ -73,7 +73,7 @@ McpBlockTool >> executeWithArguments: arguments context: requestContext [
 		paramName := resolver name.
 		(inputResponses notNil and: [inputResponses includesKey: paramName])
 			ifTrue: [| resp |
-				resp := inputResponses at: paramName.
+				resp := (inputResponses at: paramName) copy.
 				effectiveArgs at: paramName put: resp]
 			ifFalse: [
 				resolved := resolver resolveInContext: requestContext arguments: effectiveArgs.

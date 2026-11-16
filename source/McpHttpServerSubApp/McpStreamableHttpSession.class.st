@@ -16,7 +16,8 @@ Class {
 		'clientInfo',
 		'clientCapabilities',
 		'idleSince',
-		'inFlight'
+		'inFlight',
+		'pendingRequests'
 	],
 	#category : 'McpHttpServerSubApp'
 }
@@ -267,6 +268,29 @@ McpStreamableHttpSession >> protocolVersion [
 		<String>."
 
 	^protocolVersion copy
+]
+
+{ #category : 'Session Management' }
+McpStreamableHttpSession >> registerPendingRequest: requestId [
+	"Register a waiting semaphore for a server-to-client JSON-RPC request."
+
+	| assoc |
+	pendingRequests ifNil: [pendingRequests := Dictionary new].
+	assoc := Association key: Semaphore new value: nil.
+	pendingRequests at: requestId asString put: assoc.
+	^assoc
+]
+
+{ #category : 'Session Management' }
+McpStreamableHttpSession >> resolvePendingRequest: requestId with: responseDictionary [
+	"Resolve a pending server-to-client JSON-RPC request and signal its waiting process."
+
+	| assoc |
+	pendingRequests ifNil: [^false].
+	assoc := pendingRequests removeKey: requestId asString ifAbsent: [^false].
+	assoc value: responseDictionary.
+	assoc key signal.
+	^true
 ]
 
 { #category : 'Session Management' }

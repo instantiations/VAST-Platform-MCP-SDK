@@ -239,11 +239,17 @@ tool2 := McpBlockTool new
     name: 'checkout';
     inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
     "McpBlockTool automatically skips this block if the client already answered"
-    resolve: 'coupon' with: [:ctx :args | McpElicit message: 'Enter coupon code (optional):'];
+    resolve: 'coupon' with: [:ctx :args |
+        McpElicit
+            message: 'Enter coupon code (optional):'
+            schema: ((EsOrderedDictionary new)
+                at: 'type' put: 'object';
+                at: 'properties' put: (EsOrderedDictionary with: 'code' -> (EsOrderedDictionary with: 'type' -> 'string'));
+                yourself)];
     block: [:args | | elicitResult couponCode |
         "The argument contains the ElicitResult object returned by the client"
         elicitResult := args at: 'coupon'.
-        couponCode := elicitResult at: 'content' ifAbsent: ['none'].
+        couponCode := (elicitResult at: 'content' ifAbsent: [Dictionary new]) at: 'code' ifAbsent: ['none'].
         'Processed with coupon: ' , couponCode printString
     ];
     yourself.
@@ -257,7 +263,7 @@ client elicitationCallback: [:request :clientRef |
     
 	EsOrderedDictionary 
 		with: 'action' -> 'accept' 
-		with: 'content' -> 'DISCOUNT2026'].
+		with: 'content' -> (EsOrderedDictionary with: 'code' -> 'DISCOUNT2026')].
 	
 result := client callTool: 'checkout' arguments: EsOrderedDictionary new.
 ```

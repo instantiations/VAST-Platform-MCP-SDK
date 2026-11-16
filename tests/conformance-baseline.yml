@@ -7,9 +7,8 @@
 
 server:
   # ----------------------------------------------------------------------------
-  # 1. Deprecated in 2026-07-28: Elicitation & Sampling (Replaced by SEP-2322 MRTR)
+  # 1. Deprecated in 2026-07-28: Sampling (Replaced by SEP-2322 MRTR)
   # ----------------------------------------------------------------------------
-  - tools-call-elicitation
   - tools-call-sampling
   - elicitation-sep1034-defaults
   - elicitation-sep1330-enums

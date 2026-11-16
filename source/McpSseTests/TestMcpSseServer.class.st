@@ -224,3 +224,73 @@ TestMcpSseServer >> testHostAndOriginValidation [
 	transport handleSseGetRequest: request.
 	self assert: request header responseHeader status equals: '403 Forbidden'
 ]
+
+{ #category : 'Testing' }
+TestMcpSseServer >> testLegacyUrlModeElicitationIncludesElicitationId [
+	"Verify that when a tool returns a URL-mode McpElicit on a legacy session,
+	 the bidirectional bridge emits an elicitation/create request containing elicitationId
+	 and completes the tool call once the client responds."
+
+	| server tool transport session callBody callRequest queued elicitReq params srvReqId replyBody replyRequest finalResp |
+
+	server := McpServer new.
+	tool :=
+		McpBlockTool new
+			name: 'connect_account';
+			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
+			resolve: 'auth'
+				with: [:ctx :args |
+					McpElicit
+						message: 'Authorize your account'
+						url: 'https://example.com/oauth/authorize'];
+			block: [:args | | resp |
+				resp := args at: 'auth' ifAbsent: [EsOrderedDictionary new].
+				(resp at: 'action' ifAbsent: ['cancel']) = 'accept'
+					ifTrue: ['Connected']
+					ifFalse: ['Cancelled']];
+			yourself.
+	server toolRegistry registerTool: tool.
+
+	transport := McpSseServerTransport new mcpServer: server.
+	session := transport createSession.
+
+	callBody :=
+		'{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"connect_account","arguments":{}}}'.
+	callRequest :=
+		McpHttpServerTestRequest new
+			requestUri: '/messages?session_id=' , (session at: 'id');
+			contentType: 'application/json';
+			contents: callBody asUtf8Bytes;
+			yourself.
+	transport handlePostMessageRequest: callRequest.
+	self assert: callRequest header responseHeader status equals: '202 Accepted'.
+
+	(session at: 'queueSemaphore') wait.
+	queued := session at: 'queue'.
+	self assert: queued size equals: 1.
+	elicitReq := queued removeFirst.
+	self assert: (elicitReq at: 'method') equals: 'elicitation/create'.
+	srvReqId := elicitReq at: 'id'.
+	params := elicitReq at: 'params'.
+	self assert: (params at: 'mode') equals: 'url'.
+	self assert: (params at: 'url') equals: 'https://example.com/oauth/authorize'.
+	self assert: (params at: 'message') equals: 'Authorize your account'.
+	self assert: (params at: 'elicitationId') equals: srvReqId.
+	self deny: (params includesKey: 'requestedSchema').
+
+	replyBody :=
+		'{"jsonrpc":"2.0","id":"' , srvReqId , '","result":{"action":"accept"}}'.
+	replyRequest :=
+		McpHttpServerTestRequest new
+			requestUri: '/messages?session_id=' , (session at: 'id');
+			contentType: 'application/json';
+			contents: replyBody asUtf8Bytes;
+			yourself.
+	transport handlePostMessageRequest: replyRequest.
+
+	(session at: 'queueSemaphore') wait.
+	self assert: queued size equals: 1.
+	finalResp := queued removeFirst.
+	self assert: (finalResp at: 'id') equals: 1.
+	self assert: (((finalResp at: 'result') at: 'content') first at: 'text') equals: 'Connected'
+]

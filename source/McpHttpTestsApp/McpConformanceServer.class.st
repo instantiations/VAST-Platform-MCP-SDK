@@ -120,19 +120,6 @@ McpConformanceServer >> host: aString [
 	^self
 ]
 
-{ #category : 'Initialization' }
-McpConformanceServer >> initialize [
-	"Initialize default host and port.
-
-	 Answers:
-		<McpConformanceServer> the receiver."
-
-	super initialize.
-	host := '127.0.0.1'.
-	port := self class defaultPort.
-	^self
-]
-
 { #category : 'Testing' }
 McpConformanceServer >> isRunning [
 	"Answer whether the HTTP listener is currently active.
@@ -203,39 +190,32 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 			name: 'test_input_required_result_elicitation';
 			description: 'MRTR basic elicitation test tool';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
-			block: [:args :ctx | | responses |
-				responses := ctx ifNotNil: [:c | c inputResponses].
-				(responses notNil and: [responses includesKey: 'user_name'])
-					ifTrue: [| name |
-						name :=
-							((responses at: 'user_name') at: 'content' ifAbsent: [EsOrderedDictionary new])
-								at: 'name'
-								ifAbsent: ['friend'].
-						EsOrderedDictionary with: 'content' -> (Array with: (
-							EsOrderedDictionary
-								with: 'type' -> 'text'
-								with: 'text' -> ('Hello, ' , name , '!')))]
-					ifFalse: [| req schema |
-						schema :=
-							EsOrderedDictionary new
-								at: 'type' put: 'object';
-								at: 'properties' put: (
-									EsOrderedDictionary with: 'name' -> (
-										EsOrderedDictionary with: 'type' -> 'string'));
-								at: 'required' put: #('name');
-								yourself.
-						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params' put: (
-									EsOrderedDictionary
-										with: 'message' -> 'What is your name?'
-										with: 'requestedSchema' -> schema);
-								yourself.
-						EsOrderedDictionary new
-							at: 'resultType' put: 'input_required';
-							at: 'inputRequests' put: (EsOrderedDictionary with: 'user_name' -> req);
-							yourself]];
+			resolve: 'user_name' with: [:ctx :args | | schema |
+				schema :=
+					EsOrderedDictionary new
+						at: 'type' put: 'object';
+						at: 'properties' put: (
+							EsOrderedDictionary with: 'name' -> (
+								EsOrderedDictionary with: 'type' -> 'string'));
+						at: 'required' put: #('name');
+						yourself.
+				McpElicit
+					message: 'What is your name?'
+					schema: schema];
+			block: [:args :ctx | | userResp content name |
+				userResp := args at: 'user_name' ifAbsent: [EsOrderedDictionary new].
+				content :=
+					(userResp isKindOf: KeyedCollection)
+						ifTrue: [userResp at: 'content' ifAbsent: [EsOrderedDictionary new]]
+						ifFalse: [EsOrderedDictionary new].
+				name :=
+					(content isKindOf: KeyedCollection)
+						ifTrue: [content at: 'name' ifAbsent: ['friend']]
+						ifFalse: [content asString].
+				EsOrderedDictionary with: 'content' -> (Array with: (
+					EsOrderedDictionary
+						with: 'type' -> 'text'
+						with: 'text' -> ('Hello, ' , name , '!')))];
 			yourself).
 
 	reg registerTool: (
@@ -243,36 +223,25 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 			name: 'test_input_required_result_sampling';
 			description: 'MRTR basic sampling test tool';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
-			block: [:args :ctx | | responses |
-				responses := ctx ifNotNil: [:c | c inputResponses].
-				(responses notNil and: [responses includesKey: 'capital_question'])
-					ifTrue: [| sampleText |
-						sampleText :=
-							((responses at: 'capital_question') at: 'content' ifAbsent: [EsOrderedDictionary new])
-								at: 'text'
-								ifAbsent: ['Paris'].
-						EsOrderedDictionary with: 'content' -> (Array with: (
-							EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> sampleText))]
-					ifFalse: [| req msg |
-						msg :=
+			resolve: 'capital_question' with: [:ctx :args | | msg |
+				msg :=
+					EsOrderedDictionary
+						with: 'role' -> 'user'
+						with: 'content' -> (
 							EsOrderedDictionary
-								with: 'role' -> 'user'
-								with: 'content' -> (
-									EsOrderedDictionary
-										with: 'type' -> 'text'
-										with: 'text' -> 'What is the capital of France?').
-						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'sampling/createMessage';
-								at: 'params' put: (
-									EsOrderedDictionary
-										with: 'messages' -> (Array with: msg)
-										with: 'maxTokens' -> 100);
-								yourself.
-						EsOrderedDictionary new
-							at: 'resultType' put: 'input_required';
-							at: 'inputRequests' put: (EsOrderedDictionary with: 'capital_question' -> req);
-							yourself]];
+								with: 'type' -> 'text'
+								with: 'text' -> 'What is the capital of France?').
+				McpSample messages: (Array with: msg) maxTokens: 100];
+			block: [:args :ctx | | sampleResp sampleText |
+				sampleResp := args at: 'capital_question' ifAbsent: [EsOrderedDictionary new].
+				sampleText :=
+					((sampleResp isKindOf: KeyedCollection)
+						ifTrue: [sampleResp at: 'content' ifAbsent: [EsOrderedDictionary new]]
+						ifFalse: [EsOrderedDictionary new])
+							at: 'text'
+							ifAbsent: ['Paris'].
+				EsOrderedDictionary with: 'content' -> (Array with: (
+					EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> sampleText))];
 			yourself).
 
 	reg registerTool: (
@@ -280,24 +249,12 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 			name: 'test_input_required_result_list_roots';
 			description: 'MRTR basic list_roots test tool';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
-			block: [:args :ctx | | responses |
-				responses := ctx ifNotNil: [:c | c inputResponses].
-				(responses notNil and: [responses includesKey: 'client_roots'])
-					ifTrue: [
-						EsOrderedDictionary with: 'content' -> (Array with: (
-							EsOrderedDictionary
-								with: 'type' -> 'text'
-								with: 'text' -> 'Roots received successfully.'))]
-					ifFalse: [| req |
-						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'roots/list';
-								at: 'params' put: EsOrderedDictionary new;
-								yourself.
-						EsOrderedDictionary new
-							at: 'resultType' put: 'input_required';
-							at: 'inputRequests' put: (EsOrderedDictionary with: 'client_roots' -> req);
-							yourself]];
+			resolve: 'client_roots' with: [:ctx :args | McpListRoots new];
+			block: [:args :ctx |
+				EsOrderedDictionary with: 'content' -> (Array with: (
+					EsOrderedDictionary
+						with: 'type' -> 'text'
+						with: 'text' -> 'Roots received successfully.'))];
 			yourself).
 
 	reg registerTool: (
@@ -323,14 +280,7 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 										EsOrderedDictionary with: 'type' -> 'boolean'));
 								at: 'required' put: #('ok');
 								yourself.
-						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params' put: (
-									EsOrderedDictionary
-										with: 'message' -> 'Please confirm'
-										with: 'requestedSchema' -> schema);
-								yourself.
+						req := (McpElicit message: 'Please confirm' schema: schema) asInputRequest.
 						EsOrderedDictionary new
 							at: 'resultType' put: 'input_required';
 							at: 'inputRequests' put: (EsOrderedDictionary with: 'confirm' -> req);
@@ -363,31 +313,19 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 												at: 'required' put: #('name');
 												yourself.
 										req1 :=
-											EsOrderedDictionary new
-												at: 'method' put: 'elicitation/create';
-												at: 'params' put: (
-													EsOrderedDictionary
-														with: 'message' -> 'What is your name?'
-														with: 'requestedSchema' -> schema);
-												yourself.
+											(McpElicit
+												message: 'What is your name?'
+												schema: schema) asInputRequest.
 										msg :=
 											EsOrderedDictionary
 												with: 'role' -> 'user'
 												with: 'content' -> (
 													EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'Generate a greeting').
 										req2 :=
-											EsOrderedDictionary new
-												at: 'method' put: 'sampling/createMessage';
-												at: 'params' put: (
-													EsOrderedDictionary
-														with: 'messages' -> (Array with: msg)
-														with: 'maxTokens' -> 50);
-												yourself.
-										req3 :=
-											EsOrderedDictionary new
-												at: 'method' put: 'roots/list';
-												at: 'params' put: EsOrderedDictionary new;
-												yourself.
+											(McpSample
+												messages: (Array with: msg)
+												maxTokens: 50) asInputRequest.
+										req3 := McpListRoots new asInputRequest.
 										EsOrderedDictionary new
 											at: 'resultType' put: 'input_required';
 											at: 'inputRequests' put: (
@@ -423,13 +361,9 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 										at: 'required' put: #('color');
 										yourself.
 								req2 :=
-									EsOrderedDictionary new
-										at: 'method' put: 'elicitation/create';
-										at: 'params' put: (
-											EsOrderedDictionary
-												with: 'message' -> 'Step 2: What is your favorite color?'
-												with: 'requestedSchema' -> schema2);
-										yourself.
+									(McpElicit
+										message: 'Step 2: What is your favorite color?'
+										schema: schema2) asInputRequest.
 								EsOrderedDictionary new
 									at: 'resultType' put: 'input_required';
 									at: 'inputRequests' put: (EsOrderedDictionary with: 'step2' -> req2);
@@ -445,13 +379,9 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 										at: 'required' put: #('name');
 										yourself.
 								req1 :=
-									EsOrderedDictionary new
-										at: 'method' put: 'elicitation/create';
-										at: 'params' put: (
-											EsOrderedDictionary
-												with: 'message' -> 'Step 1: What is your name?'
-												with: 'requestedSchema' -> schema1);
-										yourself.
+									(McpElicit
+										message: 'Step 1: What is your name?'
+										schema: schema1) asInputRequest.
 								EsOrderedDictionary new
 									at: 'resultType' put: 'input_required';
 									at: 'inputRequests' put: (EsOrderedDictionary with: 'step1' -> req1);
@@ -487,14 +417,7 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 										EsOrderedDictionary with: 'type' -> 'boolean'));
 								at: 'required' put: #('ok');
 								yourself.
-						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params' put: (
-									EsOrderedDictionary
-										with: 'message' -> 'Please confirm'
-										with: 'requestedSchema' -> schema);
-								yourself.
+						req := (McpElicit message: 'Please confirm' schema: schema) asInputRequest.
 						EsOrderedDictionary new
 							at: 'resultType' put: 'input_required';
 							at: 'inputRequests' put: (EsOrderedDictionary with: 'confirm' -> req);
@@ -507,7 +430,7 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 			name: 'test_input_required_result_capabilities';
 			description: 'MRTR client capabilities check test tool';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
-			block: [:args :ctx | | caps inputRequests |
+			block: [:args :ctx | | caps inputRequests elicitSchema |
 				caps := ctx ifNotNil: [:c | c clientCapabilities] ifNil: [EsOrderedDictionary new].
 				inputRequests := EsOrderedDictionary new.
 				(caps includesKey: 'sampling')
@@ -519,27 +442,21 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 									EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'Sampling check').
 						inputRequests
 							at: 'sample'
-							put: (
-								EsOrderedDictionary new
-									at: 'method' put: 'sampling/createMessage';
-									at: 'params' put: (
-										EsOrderedDictionary
-											with: 'messages' -> (Array with: msg)
-											with: 'maxTokens' -> 50);
-									yourself)].
+							put: (McpSample messages: (Array with: msg) maxTokens: 50) asInputRequest].
 				(caps includesKey: 'elicitation')
-					ifTrue: [| schema |
-						schema := EsOrderedDictionary with: 'type' -> 'object'.
+					ifTrue: [
+						elicitSchema :=
+							EsOrderedDictionary new
+								at: 'type' put: 'object';
+								at: 'properties'
+									put: (
+										EsOrderedDictionary
+											with: 'value' -> (EsOrderedDictionary with: 'type' -> 'string'));
+								at: 'required' put: #('value');
+								yourself.
 						inputRequests
 							at: 'elicit'
-							put: (
-								EsOrderedDictionary new
-									at: 'method' put: 'elicitation/create';
-									at: 'params' put: (
-										EsOrderedDictionary
-											with: 'message' -> 'Elicit check'
-											with: 'requestedSchema' -> schema);
-									yourself)].
+							put: (McpElicit message: 'Elicit check' schema: elicitSchema) asInputRequest].
 				inputRequests notEmpty
 					ifTrue: [
 						EsOrderedDictionary new
@@ -557,36 +474,23 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 			name: 'test_mrtr_echo_state';
 			description: 'MRTR client test: triggers flow with requestState';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
-			block: [:args :ctx | | responses |
-				responses := ctx ifNotNil: [:c | c inputResponses].
-				responses notNil
-					ifTrue: [
-						EsOrderedDictionary new
-							at: 'resultType' put: 'complete';
-							at: 'content' put: (Array with: (
-								EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'echo-state-ok'));
-							yourself]
-					ifFalse: [| req schema |
-						schema :=
-							EsOrderedDictionary new
-								at: 'type' put: 'object';
-								at: 'properties' put: (
-									EsOrderedDictionary with: 'confirmed' -> (
-										EsOrderedDictionary with: 'type' -> 'boolean'));
-								yourself.
-						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params' put: (
-									EsOrderedDictionary
-										with: 'message' -> 'Please confirm to continue'
-										with: 'requestedSchema' -> schema);
-								yourself.
-						EsOrderedDictionary new
-							at: 'resultType' put: 'input_required';
-							at: 'inputRequests' put: (EsOrderedDictionary with: 'confirm' -> req);
-							at: 'requestState' put: 'test-echo-state-nonce';
-							yourself]];
+			resolve: 'confirm' with: [:ctx :args | | schema |
+				schema :=
+					EsOrderedDictionary new
+						at: 'type' put: 'object';
+						at: 'properties' put: (
+							EsOrderedDictionary with: 'confirmed' -> (
+								EsOrderedDictionary with: 'type' -> 'boolean'));
+						yourself.
+				McpElicit
+					message: 'Please confirm to continue'
+					schema: schema];
+			block: [:args :ctx |
+				EsOrderedDictionary new
+					at: 'resultType' put: 'complete';
+					at: 'content' put: (Array with: (
+						EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'echo-state-ok'));
+					yourself];
 			yourself).
 
 	reg registerTool: (
@@ -612,13 +516,9 @@ McpConformanceServer >> registerMrtrToolsOn: reg [
 										EsOrderedDictionary with: 'type' -> 'boolean'));
 								yourself.
 						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params' put: (
-									EsOrderedDictionary
-										with: 'message' -> 'Please confirm (no state)'
-										with: 'requestedSchema' -> schema);
-								yourself.
+							(McpElicit
+								message: 'Please confirm (no state)'
+								schema: schema) asInputRequest.
 						EsOrderedDictionary new
 							at: 'resultType' put: 'input_required';
 							at: 'inputRequests' put: (EsOrderedDictionary with: 'confirm' -> req);
@@ -766,42 +666,34 @@ McpConformanceServer >> registerPrompts [
 		McpBlockPrompt new
 			name: 'test_input_required_result_prompt';
 			description: 'Prompt with elicitation input required';
-			block: [:args :ctx | | responses |
-				responses := ctx ifNotNil: [:c | c inputResponses].
-				(responses notNil and: [responses includesKey: 'user_context'])
-					ifTrue: [| ctxVal |
-						ctxVal :=
-							((responses at: 'user_context') at: 'content' ifAbsent: [EsOrderedDictionary new])
+			resolve: 'user_context' with: [:ctx :args | | schema |
+				schema :=
+					EsOrderedDictionary new
+						at: 'type' put: 'object';
+						at: 'properties' put: (
+							EsOrderedDictionary with: 'context' -> (
+								EsOrderedDictionary with: 'type' -> 'string'));
+						at: 'required' put: #('context');
+						yourself.
+				McpElicit
+					message: 'What context should the prompt use?'
+					schema: schema];
+			block: [:args :ctx | | userCtx ctxVal |
+				userCtx := args at: 'user_context' ifAbsent: [EsOrderedDictionary new].
+				ctxVal :=
+					(userCtx isKindOf: KeyedCollection)
+						ifTrue: [
+							(userCtx at: 'content' ifAbsent: [userCtx])
 								at: 'context'
-								ifAbsent: ['default'].
-						EsOrderedDictionary with: 'messages' -> (Array with: (
+								ifAbsent: ['default']]
+						ifFalse: [userCtx asString].
+				EsOrderedDictionary with: 'messages' -> (Array with: (
+					EsOrderedDictionary
+						with: 'role' -> 'user'
+						with: 'content' -> (
 							EsOrderedDictionary
-								with: 'role' -> 'user'
-								with: 'content' -> (
-									EsOrderedDictionary
-										with: 'type' -> 'text'
-										with: 'text' -> ('Prompt with context: ' , ctxVal))))]
-					ifFalse: [| req schema |
-						schema :=
-							EsOrderedDictionary new
-								at: 'type' put: 'object';
-								at: 'properties' put: (
-									EsOrderedDictionary with: 'context' -> (
-										EsOrderedDictionary with: 'type' -> 'string'));
-								at: 'required' put: #('context');
-								yourself.
-						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params' put: (
-									EsOrderedDictionary
-										with: 'message' -> 'What context should the prompt use?'
-										with: 'requestedSchema' -> schema);
-								yourself.
-						EsOrderedDictionary new
-							at: 'resultType' put: 'input_required';
-							at: 'inputRequests' put: (EsOrderedDictionary with: 'user_context' -> req);
-							yourself]];
+								with: 'type' -> 'text'
+								with: 'text' -> ('Prompt with context: ' , ctxVal))))];
 			yourself)
 ]
 
@@ -1016,11 +908,37 @@ McpConformanceServer >> registerTools [
 							EsOrderedDictionary with: 'type' -> 'string'));
 					at: 'required' put: #('message');
 					yourself);
-			block: [:args |
+			resolve: 'user_response' with: [:ctx :args | | schema promptMsg |
+				promptMsg := args at: 'message' ifAbsent: ['Please provide your information'].
+				schema :=
+					EsOrderedDictionary new
+						at: 'type' put: 'object';
+						at: 'properties' put: (
+							EsOrderedDictionary
+								with: 'username' -> (
+									EsOrderedDictionary
+										with: 'type' -> 'string'
+										with: 'description' -> 'User''s response')
+								with: 'email' -> (
+									EsOrderedDictionary
+										with: 'type' -> 'string'
+										with: 'description' -> 'User''s email address'));
+						at: 'required' put: #('username' 'email');
+						yourself.
+				McpElicit
+					message: promptMsg
+					schema: schema];
+			block: [:args :ctx | | userResp respText |
+				userResp := args at: 'user_response' ifAbsent: [EsOrderedDictionary new].
+				respText :=
+					(userResp isKindOf: KeyedCollection)
+						ifTrue: [
+							String streamContents: [:s | (McpJSONWriter on: s) nextPut: userResp]]
+						ifFalse: [userResp asString].
 				EsOrderedDictionary with: 'content' -> (Array with: (
 					EsOrderedDictionary
 						with: 'type' -> 'text'
-						with: 'text' -> ('User response: ' , (args at: 'message' ifAbsent: ['']))))];
+						with: 'text' -> ('User response: ' , respText)))];
 			yourself).
 
 	reg registerTool: (
@@ -1028,36 +946,24 @@ McpConformanceServer >> registerTools [
 			name: 'test_client_elicitation_defaults';
 			description: 'Tool triggering client elicitation defaults';
 			inputSchema: (EsOrderedDictionary with: 'type' -> 'object');
-			block: [:args :ctx | | responses |
-				responses := ctx ifNotNil: [:c | c inputResponses].
-				responses notNil
-					ifTrue: [
-						EsOrderedDictionary with: 'content' -> (Array with: (
-							EsOrderedDictionary
-								with: 'type' -> 'text'
-								with: 'text' -> 'elicitation-defaults-ok'))]
-					ifFalse: [| req schema |
-						schema :=
-							EsOrderedDictionary new
-								at: 'type' put: 'object';
-								at: 'properties' put: (
-									EsOrderedDictionary with: 'name' -> (
-										EsOrderedDictionary
-											with: 'type' -> 'string'
-											with: 'default' -> 'DefaultName'));
-								yourself.
-						req :=
-							EsOrderedDictionary new
-								at: 'method' put: 'elicitation/create';
-								at: 'params' put: (
-									EsOrderedDictionary
-										with: 'message' -> 'Please provide input'
-										with: 'requestedSchema' -> schema);
-								yourself.
-						EsOrderedDictionary new
-							at: 'resultType' put: 'input_required';
-							at: 'inputRequests' put: (EsOrderedDictionary with: 'elicit_input' -> req);
-							yourself]];
+			resolve: 'elicit_input' with: [:ctx :args | | schema |
+				schema :=
+					EsOrderedDictionary new
+						at: 'type' put: 'object';
+						at: 'properties' put: (
+							EsOrderedDictionary with: 'name' -> (
+								EsOrderedDictionary
+									with: 'type' -> 'string'
+									with: 'default' -> 'DefaultName'));
+						yourself.
+				McpElicit
+					message: 'Please provide input'
+					schema: schema];
+			block: [:args :ctx |
+				EsOrderedDictionary with: 'content' -> (Array with: (
+					EsOrderedDictionary
+						with: 'type' -> 'text'
+						with: 'text' -> 'elicitation-defaults-ok'))];
 			yourself).
 
 	reg registerTool: (

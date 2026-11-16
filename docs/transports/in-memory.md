@@ -29,8 +29,8 @@ connects:
 | client |
 client := McpClient legacy
     transport: (McpInMemoryClientTransport server: server);
-    capabilities: (EsOrderedDictionary with: 'elicitation' -> EsOrderedDictionary new);
-    elicitationCallback: [:request :aClient | 'yes'];
+    elicitationCallback: [:request :aClient |
+        EsOrderedDictionary with: 'action' -> 'accept' with: 'content' -> (EsOrderedDictionary with: 'confirm' -> true)];
     yourself.
 client connect.
 ```

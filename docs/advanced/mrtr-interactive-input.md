@@ -76,13 +76,16 @@ How it works:
    callback answered.
 
 A resolver can also answer a plain value, in which case no round trip is
-needed, e.g. `[:context :args | args at: 'confirm' ifAbsent: [McpElicit message: ...]]`.
+needed, e.g. `[:context :args | args at: 'confirm' ifAbsent: [McpElicit message: ... schema: ...]]`.
 
 ### Input request types
 
 ```smalltalk
-McpElicit message: 'Enter a coupon code'.
+"Form mode: the client collects values that match the schema"
 McpElicit message: 'Shipping address?' schema: aJsonSchemaDictionary.
+
+"URL mode: the client sends the user to a web page"
+McpElicit message: 'Sign in to your account to continue' url: 'https://example.com/connect'.
 
 McpSample messages: (Array with: ((EsOrderedDictionary new)
     at: 'role' put: 'user';
@@ -95,18 +98,51 @@ McpSample messages: (Array with: ((EsOrderedDictionary new)
 McpListRoots new.
 ```
 
-!!! warning "One resolver per tool"
-    In the current release, a tool with **more than one** resolver doesn't
-    complete. Each retry only carries the answer from the latest round, so
-    the server keeps asking until the client reaches `inputRequiredMaxRounds`.
-    Use at most one resolver per tool. To collect several values, use one
-    `McpElicit` with an object schema.
+### Elicitation modes
+
+An `McpElicit` always has a mode, which is sent to the client as
+`params.mode`:
+
+- **Form mode** (`message:schema:`) asks the client to collect structured
+  data. The schema is required. It must be a flat JSON Schema object
+  (`type: 'object'`) whose properties are primitives: `string` (optionally
+  with `format` `email`, `uri`, `date` or `date-time`, or with `enum` or
+  `oneOf` options), `number`, `integer`, `boolean`, or an `array` of enum
+  values for multi-select. Nested objects aren't allowed. A property may
+  declare a `default`.
+- **URL mode** (`message:url:`) asks the client to open a URL, for example to
+  sign in or to enter sensitive data that must not pass through the client.
+  The URL must be absolute. The client answers only with an `action`; the
+  data itself goes straight to your web page.
+
+`McpElicit` checks this when you create it, and signals an error for an empty
+message, a missing or unsupported schema, or an invalid URL. To ask a simple
+yes/no question, use a schema with one `boolean` property:
+
+```smalltalk
+McpElicit
+    message: 'Approve the transfer?'
+    schema: ((EsOrderedDictionary new)
+        at: 'type' put: 'object';
+        at: 'properties' put: (EsOrderedDictionary with: 'approve' -> (EsOrderedDictionary with: 'type' -> 'boolean'));
+        at: 'required' put: #('approve');
+        yourself).
+```
+
+### Several resolvers
+
+A tool can declare more than one resolver. The client keeps the answers of
+earlier rounds and sends them all on every retry, so each resolver runs at
+most once and the block runs when all answers are in. To ask several related
+questions in a single round, use one form-mode `McpElicit` with several
+properties instead.
 
 ### Writing InputRequiredResults by hand
 
 Tools, resource readers and prompt renderers can also answer an
 `InputRequiredResult` themselves. Use `context inputResponses` and
-`context requestState` to continue on the next round:
+`context requestState` to continue on the next round. Here, `approvalSchema`
+is the one-boolean schema shown above:
 
 ```smalltalk
 block: [:args :context |
@@ -115,7 +151,7 @@ block: [:args :context |
             (EsOrderedDictionary new)
                 at: 'resultType' put: 'input_required';
                 at: 'inputRequests' put: (EsOrderedDictionary
-                    with: 'approval' -> (McpElicit message: 'Approve the transfer?') asInputRequest);
+                    with: 'approval' -> (McpElicit message: 'Approve the transfer?' schema: approvalSchema) asInputRequest);
                 at: 'requestState' put: 'awaiting-approval';
                 yourself]
         ifNotNil: [:approval | self executeTransferWith: approval]]
@@ -135,7 +171,7 @@ client
         at: 'roots' put: EsOrderedDictionary new;
         yourself);
     elicitationCallback: [:request :aClient |
-        "request: {method: 'elicitation/create', params: {message, requestedSchema}}"
+        "request: {method: 'elicitation/create', params: {mode, message, requestedSchema or url}}"
         (self askUser: ((request at: 'params') at: 'message'))
             ifTrue: [EsOrderedDictionary
                 with: 'action' -> 'accept'
@@ -156,7 +192,16 @@ client
   that the tool expects. The MCP shapes are `{action, content}` for
   elicitation, a message for sampling and a list of roots for `roots/list`.
 - Declare the matching `capabilities:` so that servers know you can handle
-  them. Installing a callback doesn't declare anything.
+  them. The one exception is elicitation: installing an
+  `elicitationCallback:` declares `elicitation` with both `form` and `url`
+  modes, unless you declared `elicitation` yourself. Sampling and roots
+  callbacks don't declare anything.
+- For elicitation, the client checks the incoming request (a nonempty
+  message, an object schema in form mode, a valid URL and no schema in URL
+  mode) before calling your callback, and checks that your answer's `action`
+  is `accept`, `decline` or `cancel`. When you accept a form, properties that
+  you leave out of `content` are filled in from the schema's `default`
+  values.
 - If the server asks for something without a callback installed, the call
   signals an error.
 - `inputRequiredMaxRounds:` (default 10) protects against servers that never

@@ -180,6 +180,19 @@ McpStdioServer >> inputStream: aStream [
 	^self
 ]
 
+{ #category : 'Testing',
+  #vaVisibility : 'private' }
+McpStdioServer >> isInputRequiredResponse: aResponse [
+	"Answer whether a dispatcher response wraps an SEP-2322 InputRequiredResult."
+
+	| res rt |
+	(aResponse isKindOf: KeyedCollection) ifFalse: [^false].
+	res := aResponse at: 'result' ifAbsent: [nil].
+	(res isKindOf: KeyedCollection) ifFalse: [^false].
+	rt := res at: 'resultType' ifAbsent: [nil].
+	^rt = 'input_required' or: [rt = 'inputRequired']
+]
+
 { #category : 'Testing' }
 McpStdioServer >> isRunning [
 	"Answer whether the server is currently running.
@@ -281,7 +294,7 @@ McpStdioServer >> processMessage: aLine [
 								at: 'code' put: McpJsonRpcInvalidRequestCode;
 								at: 'message' put: 'Invalid Request';
 								yourself);
-					yourself.
+						yourself.
 			self sendResponse: errResp.
 			^self].
 	context := McpServerRequestContext new.
@@ -292,6 +305,14 @@ McpStdioServer >> processMessage: aLine [
 	self extractMetaParametersFrom: params into: context.
 	context protocolVersion: reqVersion.
 	response := self dispatcher dispatch: parsed context: context.
+	((self isInputRequiredResponse: response)
+		and: [(McpProtocolVersion isModern: reqVersion) not])
+			ifTrue: [
+				response :=
+					self
+						resolveInputRequiredOverStdio: response
+						forRequest: parsed
+						context: context].
 	(method = 'initialize' and: [response notNil and: [(response includesKey: 'error') not]])
 		ifTrue: [| result |
 			result := response at: 'result' ifAbsent: [nil].
@@ -300,6 +321,79 @@ McpStdioServer >> processMessage: aLine [
 					negotiatedProtocolVersion := result at: 'protocolVersion' ifAbsent: [nil]]].
 	response ifNotNil: [self sendResponse: response].
 	^self
+]
+
+{ #category : 'Protocol Operations',
+  #vaVisibility : 'private' }
+McpStdioServer >> readClientResponseForId: expectedId [
+	"Read lines from inputStream until the JSON-RPC response for expectedId arrives."
+
+	[self isRunning and: [self inputStream notNil and: [self inputStream atEnd not]]] whileTrue: [
+		| line lineString parsed |
+		line := (self inputStream respondsTo: #nextLine)
+			ifTrue: [self inputStream nextLine]
+			ifFalse: [self inputStream upTo: Character lf].
+		line ifNotNil: [
+			lineString := (line isKindOf: ByteArray)
+				ifTrue: [(UnicodeString utf8: line) asString]
+				ifFalse: [line asString].
+			lineString isEmpty ifFalse: [
+				parsed := [McpJSONReader fromString: lineString] on: Error do: [:e | nil].
+				(parsed isKindOf: KeyedCollection) ifTrue: [
+					((parsed includesKey: 'method') not and: [(parsed at: 'id' ifAbsent: [nil]) = expectedId])
+						ifTrue: [^parsed]]]]].
+	^nil
+]
+
+{ #category : 'Protocol Operations',
+  #vaVisibility : 'private' }
+McpStdioServer >> resolveInputRequiredOverStdio: initialResponse forRequest: parsedRequest context: requestContext [
+	"Bridge SEP-2322 input_required responses to 2025-06-18 bidirectional stdio server-to-client requests."
+
+	| currentResponse rounds retryRequest params accumulatedResponses |
+	currentResponse := initialResponse.
+	rounds := 0.
+	accumulatedResponses := EsOrderedDictionary new.
+	[
+		(self isInputRequiredResponse: currentResponse) and: [rounds < 10]
+	] whileTrue: [
+		| resultObj inputRequests requestState |
+		rounds := rounds + 1.
+		resultObj := currentResponse at: 'result'.
+		inputRequests := resultObj at: 'inputRequests' ifAbsent: [EsOrderedDictionary new].
+		requestState := resultObj at: 'requestState' ifAbsent: [nil].
+
+		inputRequests keysAndValuesDo: [:reqKey :reqSpec |
+			| srvReqId reqParams srvRequest clientReply replyResult |
+			srvReqId := 'elicit-' , UUID new asString.
+			reqParams := (reqSpec at: 'params' ifAbsent: [EsOrderedDictionary new]) copy.
+			((reqSpec at: 'method' ifAbsent: [nil]) = 'elicitation/create'
+				and: [(reqParams at: 'mode' ifAbsent: [nil]) = 'url'
+					and: [(reqParams includesKey: 'elicitationId') not]])
+						ifTrue: [reqParams at: 'elicitationId' put: srvReqId].
+			srvRequest := EsOrderedDictionary new
+				at: 'jsonrpc' put: '2.0';
+				at: 'id' put: srvReqId;
+				at: 'method' put: (reqSpec at: 'method');
+				at: 'params' put: reqParams;
+				yourself.
+			self sendResponse: srvRequest.
+			clientReply := self readClientResponseForId: srvReqId.
+			replyResult := (clientReply isKindOf: KeyedCollection)
+				ifTrue: [
+					clientReply at: 'result' ifAbsent: [
+						EsOrderedDictionary with: 'action' -> 'cancel']]
+				ifFalse: [EsOrderedDictionary with: 'action' -> 'cancel'].
+			accumulatedResponses at: reqKey put: replyResult].
+
+		retryRequest := parsedRequest copy.
+		params := (parsedRequest at: 'params' ifAbsent: [EsOrderedDictionary new]) copy.
+		params at: 'inputResponses' put: accumulatedResponses copy.
+		requestState ifNotNil: [params at: 'requestState' put: requestState].
+		retryRequest at: 'params' put: params.
+
+		currentResponse := self dispatcher dispatch: retryRequest context: requestContext].
+	^currentResponse
 ]
 
 { #category : 'IO Loops' }

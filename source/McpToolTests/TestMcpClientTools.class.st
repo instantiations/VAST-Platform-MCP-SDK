@@ -145,50 +145,62 @@ TestMcpClientTools >> testCallToolDrivesInputRequiredLoop [
 	"Client automatically resolves InputRequiredResult rounds through registered
 		callbacks."
 
-	| inputRequired promptResult result requests |
+	| inputRequired promptResult result requests schema expectedElicitResult |
 
 	self connectWithToolsCapability.
+	schema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with: 'confirmed' -> (EsOrderedDictionary with: 'type' -> 'boolean'));
+			yourself.
 	inputRequired :=
 		EsOrderedDictionary new
 			at: 'resultType' put: 'inputRequired';
 			at: 'requestState' put: 'nonce-1';
 			at: 'inputRequests'
 				put: (
-					EsOrderedDictionary with:
-						'confirm' -> (
-							EsOrderedDictionary
-								with: 'method' -> 'elicitation/create'
-								with: 'params' -> (EsOrderedDictionary with:
-				'message' -> 'Proceed?')));
+					EsOrderedDictionary
+						with:
+							'confirm' -> (
+								EsOrderedDictionary
+									with: 'method' -> 'elicitation/create'
+									with:
+										'params' -> (
+											EsOrderedDictionary
+												with: 'message' -> 'Proceed?'
+												with: 'requestedSchema' -> schema)));
 			yourself.
 	promptResult :=
 		EsOrderedDictionary new
 			at: 'resultType' put: 'complete';
 			at: 'content'
 				put:
-					(Array with: (EsOrderedDictionary with: 'type' -> 'text'
-				with: 'text' -> 'done'));
+					(Array
+						with: (EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'done'));
 			at: 'isError' put: false;
 			yourself.
+	expectedElicitResult :=
+		EsOrderedDictionary
+			with: 'action' -> 'accept'
+			with: 'content' -> (EsOrderedDictionary with: 'confirmed' -> true).
 	transport enqueueResponse: inputRequired.
 	transport enqueueResponse: promptResult.
 	client elicitationCallback: [:request :cl |
 		self assert: ((request at: 'params') at: 'message') equals: 'Proceed?'.
-		EsOrderedDictionary with: 'confirmed' -> true].
+		expectedElicitResult].
 	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
-	result := client callTool: 'interactive.tool' arguments: EsOrderedDictionary
-		new.
+	result := client callTool: 'interactive.tool' arguments: EsOrderedDictionary new.
 	self assert: ((result at: 'content') first at: 'text') equals: 'done'.
 	self assert: transport requests size equals: 4.
 	requests := transport requests.
 	self assert: (requests third at: 'method') equals: 'tools/call'.
-	self assert: ((requests third at: 'params') at: 'requestState') equals:
-		'nonce-1'.
+	self assert: ((requests third at: 'params') at: 'requestState') equals: 'nonce-1'.
 	self
-		assert: (((requests third at: 'params') at: 'inputResponses') at:
-			'confirm')
-		equals: (EsOrderedDictionary with: 'confirmed' -> true)
-
+		assert: (((requests third at: 'params') at: 'inputResponses') at: 'confirm')
+		equals: expectedElicitResult
 ]
 
 { #category : 'Testing' }

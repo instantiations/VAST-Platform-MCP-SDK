@@ -172,6 +172,44 @@ McpClient >> addExtension: anExtension [
 	^self
 ]
 
+{ #category : 'Protocol Operations',
+  #vaVisibility : 'private' }
+McpClient >> applyElicitationDefaultsFrom: params toResult: callbackResult [
+	"Populate omitted properties in an accepted form-mode ElicitResult content dictionary
+	 using default values declared in requestedSchema.
+
+	 Arguments:
+		params - <KeyedCollection> elicitation/create params.
+		callbackResult - <KeyedCollection> client callback ElicitResult.
+	 Answers:
+		<KeyedCollection> updated ElicitResult."
+
+	| reqMode action requestedSchema properties content resultCopy contentCopy |
+
+	reqMode := params at: 'mode' ifAbsent: ['form'].
+	reqMode = 'form' ifFalse: [^callbackResult].
+	action := callbackResult at: 'action' ifAbsent: [nil].
+	action = 'accept' ifFalse: [^callbackResult].
+	content := callbackResult at: 'content' ifAbsent: [nil].
+	(content isKindOf: KeyedCollection) ifFalse: [^callbackResult].
+	requestedSchema := params at: 'requestedSchema' ifAbsent: [nil].
+	(requestedSchema isKindOf: KeyedCollection) ifFalse: [^callbackResult].
+	properties := requestedSchema at: 'properties' ifAbsent: [nil].
+	(properties isKindOf: KeyedCollection) ifFalse: [^callbackResult].
+
+	contentCopy := content copy.
+	properties keysAndValuesDo: [:propName :propDef |
+		((propDef isKindOf: KeyedCollection)
+			and: [(propDef includesKey: 'default') and: [(contentCopy includesKey: propName) not]])
+				ifTrue: [
+					contentCopy
+						at: propName
+						put: (self detachedProtocolValue: (propDef at: 'default'))]].
+	resultCopy := callbackResult copy.
+	resultCopy at: 'content' put: contentCopy.
+	^resultCopy
+]
+
 { #category : 'Accessing' }
 McpClient >> cacheMode [
 	"Answer the active cache mode (#use, #refresh, #bypass).
@@ -374,12 +412,23 @@ McpClient >> capabilities [
 	 Answers:
 		<KeyedCollection> JSON-compatible capability declaration."
 
+	| effectiveCapabilities |
+
+	effectiveCapabilities := self detachedProtocolValue: capabilities.
+	(self elicitationCallback notNil and: [(effectiveCapabilities includesKey: 'elicitation') not])
+		ifTrue: [
+			effectiveCapabilities
+				at: 'elicitation'
+				put: (
+					EsOrderedDictionary
+						with: 'form' -> EsOrderedDictionary new
+						with: 'url' -> EsOrderedDictionary new)].
 	self extensions notEmpty
 		ifTrue: [| extDict |
 			extDict := EsOrderedDictionary new.
 			self extensions do: [:ext | extDict at: ext identifier put: ext settings].
-			capabilities at: 'extensions' put: extDict].
-	^self detachedProtocolValue: capabilities
+			effectiveCapabilities at: 'extensions' put: extDict].
+	^self detachedProtocolValue: effectiveCapabilities
 ]
 
 { #category : 'Accessing' }
@@ -850,21 +899,13 @@ McpClient >> dispatchInputRequest: inputRequest named: requestKey [
 	 Answers:
 		<Object> client response for this input request."
 
-	| method callbackResult |
+	| method |
 
 	(inputRequest isKindOf: KeyedCollection)
 		ifFalse: [self error: 'Invalid embedded input request: expected an object'].
 	method := inputRequest at: 'method' ifAbsent: [nil].
 	method = 'elicitation/create'
-		ifTrue: [
-			self elicitationCallback ifNil: [
-				self error:
-					'No client elicitationCallback registered for input request: ' , requestKey].
-			callbackResult := self elicitationCallback value: inputRequest value: self.
-			(callbackResult isKindOf: KeyedCollection) ifFalse: [
-				self error: 'Elicitation callback must return an ElicitResult object (KeyedCollection)'.
-			].
-			^callbackResult].
+		ifTrue: [^self handleElicitationCreateRequest: inputRequest].
 	method = 'sampling/createMessage'
 		ifTrue: [
 			self samplingCallback ifNil: [
@@ -889,10 +930,11 @@ McpClient >> driveInputRequired: initialResult retryBlock: aRetryBlock [
 	 Answers:
 		<KeyedCollection> terminal result."
 
-	| current rounds requests responses state resultType |
+	| current rounds requests accumulatedResponses state resultType |
 
 	current := initialResult.
 	rounds := 0.
+	accumulatedResponses := EsOrderedDictionary new.
 	[
 		(current isKindOf: KeyedCollection) and: [
 			resultType := current at: 'resultType' ifAbsent: [nil].
@@ -906,13 +948,13 @@ McpClient >> driveInputRequired: initialResult retryBlock: aRetryBlock [
 									self inputRequiredMaxRounds printString].
 					requests := current at: 'inputRequests' ifAbsent: [nil].
 					state := current at: 'requestState' ifAbsent: [nil].
-					responses := nil.
 					(requests isKindOf: KeyedCollection)
 						ifTrue: [
-							responses := EsOrderedDictionary new.
 							requests keysAndValuesDo: [:key :req |
-								responses at: key put: (self dispatchInputRequest: req named: key)]].
-					current := aRetryBlock value: responses value: state].
+								accumulatedResponses
+									at: key
+									put: (self dispatchInputRequest: req named: key)]].
+					current := aRetryBlock value: accumulatedResponses copy value: state].
 	^current
 ]
 
@@ -1049,6 +1091,37 @@ McpClient >> getPrompt: promptName arguments: arguments [
 	^self validatedPromptResult: result
 ]
 
+{ #category : 'Protocol Operations',
+  #vaVisibility : 'private' }
+McpClient >> handleElicitationCreateRequest: inputRequest [
+	"Validate, dispatch, and apply schema defaults for one elicitation/create request.
+
+	 Arguments:
+		inputRequest - <KeyedCollection> elicitation/create request object.
+	 Answers:
+		<KeyedCollection> validated ElicitResult."
+
+	| callbackResult action |
+
+	self validateElicitationRequest: inputRequest.
+	self elicitationCallback ifNil: [
+		McpJsonRpcError
+			signalCode: McpJsonRpcInvalidParamsCode
+			message: 'No client elicitationCallback registered for elicitation/create'
+			data: nil].
+	callbackResult := self elicitationCallback value: inputRequest value: self.
+	(callbackResult isKindOf: KeyedCollection)
+		ifFalse: [
+			self error:
+				'Elicitation callback must return an ElicitResult object (KeyedCollection)'].
+	action := callbackResult at: 'action' ifAbsent: [nil].
+	(#('accept' 'decline' 'cancel') includes: action)
+		ifFalse: [self error: 'Elicitation result action must be accept, decline, or cancel'].
+	^self
+		applyElicitationDefaultsFrom: (inputRequest at: 'params')
+		toResult: callbackResult
+]
+
 { #category : 'Message Handling' }
 McpClient >> handleIncomingMessage: aDictionary [
 	"Validate and dispatch one server-originated JSON-RPC message.
@@ -1150,6 +1223,30 @@ McpClient >> handleRequestMethod: methodName params: parameters id: identifier [
 	| handler result |
 
 	handler := handlerMutex critical: [requestHandlers at: methodName ifAbsent: [nil]].
+	(handler isNil and: [methodName = 'elicitation/create' and: [self elicitationCallback notNil]])
+		ifTrue: [| inputRequest |
+			inputRequest :=
+				EsOrderedDictionary new
+					at: 'method' put: methodName;
+					at: 'params' put: parameters;
+					yourself.
+			[
+				[result := self handleElicitationCreateRequest: inputRequest]
+					on: McpJsonRpcError
+					do: [:rpcError |
+						^self
+							sendErrorCode: rpcError code
+							message: rpcError messageText
+							data: rpcError data
+							id: identifier]]
+								on: Error
+								do: [:unexpectedError |
+									^self
+										sendErrorCode: McpJsonRpcInternalErrorCode
+										message: 'Internal error'
+										data: nil
+										id: identifier].
+			^self sendResult: result id: identifier].
 	handler ifNil: [
 		^self
 			sendErrorCode: McpJsonRpcMethodNotFoundCode
@@ -2097,6 +2194,24 @@ McpClient >> serverVersion [
 	^self serverInfo at: 'version' ifAbsent: ['unknown']
 ]
 
+{ #category : 'Testing',
+  #vaVisibility : 'private' }
+McpClient >> supportsElicitationMode: aMode [
+	"Answer whether the client's effective capabilities declare support for the given elicitation mode.
+
+	 Arguments:
+		aMode - <String> 'form' or 'url'.
+	 Answers:
+		<Boolean>."
+
+	| elicitationCap |
+
+	elicitationCap := self capabilities at: 'elicitation' ifAbsent: [nil].
+	(elicitationCap isKindOf: KeyedCollection) ifFalse: [^false].
+	elicitationCap isEmpty ifTrue: [^aMode = 'form'].
+	^elicitationCap includesKey: aMode
+]
+
 { #category : 'Accessing' }
 McpClient >> transport [
 	"Answer the configured client transport.
@@ -2177,6 +2292,78 @@ McpClient >> validateContentBlock: content [
 				ifFalse: [self error: 'MCP resource link URI must be absolute'].
 			^self].
 	self error: 'MCP content block has an unsupported type'
+]
+
+{ #category : 'Validation',
+  #vaVisibility : 'private' }
+McpClient >> validateElicitationRequest: inputRequest [
+	"Validate the parameters of an incoming elicitation/create request per the MCP specification.
+
+	 Arguments:
+		inputRequest - <KeyedCollection> embedded input request object.
+	 Answers:
+		<McpClient> the receiver.
+	 Raises:
+		<McpJsonRpcError> when parameters, capabilities, or schema are missing or malformed."
+
+	| params message reqMode requestedSchema targetUrl colonIndex |
+
+	params := inputRequest at: 'params' ifAbsent: [nil].
+	(params isKindOf: KeyedCollection)
+		ifFalse: [
+			McpJsonRpcError
+				signalCode: McpJsonRpcInvalidParamsCode
+				message: 'Invalid elicitation/create request: params must be an object'
+				data: nil].
+	message := params at: 'message' ifAbsent: [nil].
+	(message isString and: [message isSymbol not and: [message isEmpty not]])
+		ifFalse: [
+			McpJsonRpcError
+				signalCode: McpJsonRpcInvalidParamsCode
+				message: 'Invalid elicitation/create request: message must be a nonempty string'
+				data: nil].
+	reqMode := params at: 'mode' ifAbsent: ['form'].
+	(#('form' 'url') includes: reqMode)
+		ifFalse: [
+			McpJsonRpcError
+				signalCode: McpJsonRpcInvalidParamsCode
+				message: 'Invalid elicitation/create request: mode must be form or url'
+				data: nil].
+	(self supportsElicitationMode: reqMode)
+		ifFalse: [
+			McpJsonRpcError
+				signalCode: McpJsonRpcInvalidParamsCode
+				message: 'Unsupported elicitation mode: ' , reqMode
+				data: nil].
+	reqMode = 'form'
+		ifTrue: [
+			requestedSchema := params at: 'requestedSchema' ifAbsent: [nil].
+			((requestedSchema isKindOf: KeyedCollection)
+				and: [
+					(requestedSchema at: 'type' ifAbsent: [nil]) = 'object'
+					and: [(requestedSchema at: 'properties' ifAbsent: [nil]) isKindOf: KeyedCollection]])
+						ifFalse: [
+							McpJsonRpcError
+								signalCode: McpJsonRpcInvalidParamsCode
+								message:
+									'Invalid elicitation/create request: form mode requires an object requestedSchema with properties'
+								data: nil]]
+		ifFalse: [
+			targetUrl := params at: 'url' ifAbsent: [nil].
+			(self isValidAbsoluteResourceUri: targetUrl)
+					ifFalse: [
+						McpJsonRpcError
+							signalCode: McpJsonRpcInvalidParamsCode
+							message: 'Invalid elicitation/create request: url mode requires a valid URL'
+							data: nil].
+			(params includesKey: 'requestedSchema')
+				ifTrue: [
+					McpJsonRpcError
+						signalCode: McpJsonRpcInvalidParamsCode
+						message:
+							'Invalid elicitation/create request: url mode must not include requestedSchema'
+						data: nil]].
+	^self
 ]
 
 { #category : 'Validation',

@@ -235,12 +235,20 @@ this with resolvers:
 
 ```smalltalk
 tool resolve: 'confirm' with: [:context :args |
-    McpElicit message: 'Delete ' , (args at: 'path') , '?'].
+    McpElicit
+        message: 'Delete ' , (args at: 'path') , '?'
+        schema: ((EsOrderedDictionary new)
+            at: 'type' put: 'object';
+            at: 'properties' put: (EsOrderedDictionary with: 'confirm' -> (EsOrderedDictionary with: 'type' -> 'boolean'));
+            at: 'required' put: #('confirm');
+            yourself)].
 ```
 
-When `confirm` hasn't been supplied yet, the call returns an
-`input_required` result. The client gathers the answer and resends the call,
-and the block then runs with `args at: 'confirm'` filled in. See
+An elicitation always declares the schema of the answer it expects (or, in
+URL mode, the URL the user should visit). When `confirm` hasn't been supplied
+yet, the call returns an `input_required` result. The client gathers the
+answer and resends the call, and the block then runs with `args at: 'confirm'`
+holding the client's answer, e.g. `{action: 'accept', content: {confirm: true}}`. See
 [Interactive input](../advanced/mrtr-interactive-input.md).
 
 ## Progress
