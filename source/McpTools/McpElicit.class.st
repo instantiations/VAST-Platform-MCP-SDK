@@ -55,20 +55,25 @@ McpElicit class >> message: aString url: aUrlString [
 { #category : 'Converting' }
 McpElicit >> asInputRequest [
 	"Answer the MCP wire representation of this elicitation request.
+	 For backwards compatibility across MCP protocol versions, omits 'mode'
+	 when in 'form' mode and explicitly includes 'mode' -> 'url' in 'url' mode.
 
 	 Answers:
 		<KeyedCollection>."
 
 	| params |
 
-	params :=
-		EsOrderedDictionary new
-			at: 'mode' put: self mode;
-			at: 'message' put: self message;
-			yourself.
+	params := EsOrderedDictionary new.
 	self mode = 'url'
-		ifTrue: [params at: 'url' put: self url]
-		ifFalse: [params at: 'requestedSchema' put: self schema].
+		ifTrue: [
+			params
+				at: 'mode' put: 'url';
+				at: 'url' put: self url;
+				at: 'message' put: self message]
+		ifFalse: [
+			params
+				at: 'message' put: self message;
+				at: 'requestedSchema' put: self schema].
 	^EsOrderedDictionary new
 		at: 'method' put: 'elicitation/create';
 		at: 'params' put: params;

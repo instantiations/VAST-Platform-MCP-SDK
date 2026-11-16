@@ -220,7 +220,7 @@ TestMcpToolResolvers >> testElicitResolverYieldsInputRequired [
 	req := (result at: 'inputRequests') at: 'age'.
 	self assert: (req at: 'method') equals: 'elicitation/create'.
 	params := req at: 'params'.
-	self assert: (params at: 'mode') equals: 'form'.
+	self assert: (params at: 'mode' ifAbsent: ['form']) equals: 'form'.
 	schema := params at: 'requestedSchema' ifAbsent: [nil].
 	self assert: (schema isKindOf: KeyedCollection).
 	self assert: (schema at: 'type' ifAbsent: [nil]) equals: 'object'.
