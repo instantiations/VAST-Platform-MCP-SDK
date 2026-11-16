@@ -145,7 +145,7 @@ TestMcpClientTools >> testCallToolDrivesInputRequiredLoop [
 	"Client automatically resolves InputRequiredResult rounds through registered
 		callbacks."
 
-	| inputRequired promptResult result requests schema |
+	| inputRequired promptResult result requests schema expectedElicitResult |
 
 	self connectWithToolsCapability.
 	schema :=
@@ -182,11 +182,15 @@ TestMcpClientTools >> testCallToolDrivesInputRequiredLoop [
 						with: (EsOrderedDictionary with: 'type' -> 'text' with: 'text' -> 'done'));
 			at: 'isError' put: false;
 			yourself.
+	expectedElicitResult :=
+		EsOrderedDictionary
+			with: 'action' -> 'accept'
+			with: 'content' -> (EsOrderedDictionary with: 'confirmed' -> true).
 	transport enqueueResponse: inputRequired.
 	transport enqueueResponse: promptResult.
 	client elicitationCallback: [:request :cl |
 		self assert: ((request at: 'params') at: 'message') equals: 'Proceed?'.
-		EsOrderedDictionary with: 'confirmed' -> true].
+		expectedElicitResult].
 	transport enqueueResponse: (EsOrderedDictionary with: 'tools' -> #()).
 	result := client callTool: 'interactive.tool' arguments: EsOrderedDictionary new.
 	self assert: ((result at: 'content') first at: 'text') equals: 'done'.
@@ -196,7 +200,7 @@ TestMcpClientTools >> testCallToolDrivesInputRequiredLoop [
 	self assert: ((requests third at: 'params') at: 'requestState') equals: 'nonce-1'.
 	self
 		assert: (((requests third at: 'params') at: 'inputResponses') at: 'confirm')
-		equals: (EsOrderedDictionary with: 'confirmed' -> true)
+		equals: expectedElicitResult
 ]
 
 { #category : 'Testing' }

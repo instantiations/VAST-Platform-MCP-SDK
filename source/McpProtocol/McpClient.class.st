@@ -899,29 +899,13 @@ McpClient >> dispatchInputRequest: inputRequest named: requestKey [
 	 Answers:
 		<Object> client response for this input request."
 
-	| method callbackResult action |
+	| method |
 
 	(inputRequest isKindOf: KeyedCollection)
 		ifFalse: [self error: 'Invalid embedded input request: expected an object'].
 	method := inputRequest at: 'method' ifAbsent: [nil].
 	method = 'elicitation/create'
-		ifTrue: [
-			self validateElicitationRequest: inputRequest.
-			self elicitationCallback ifNil: [
-				self error:
-					'No client elicitationCallback registered for input request: ' , requestKey].
-			callbackResult := self elicitationCallback value: inputRequest value: self.
-			(callbackResult isKindOf: KeyedCollection)
-				ifFalse: [
-					self error:
-						'Elicitation callback must return an ElicitResult object (KeyedCollection)'].
-			action := callbackResult at: 'action' ifAbsent: [nil].
-			(action isNil or: [#('accept' 'decline' 'cancel') includes: action])
-				ifFalse: [
-					self error: 'Elicitation result action must be accept, decline, or cancel'].
-			^self
-				applyElicitationDefaultsFrom: (inputRequest at: 'params')
-				toResult: callbackResult].
+		ifTrue: [^self handleElicitationCreateRequest: inputRequest].
 	method = 'sampling/createMessage'
 		ifTrue: [
 			self samplingCallback ifNil: [
@@ -1105,6 +1089,37 @@ McpClient >> getPrompt: promptName arguments: arguments [
 				requestState ifNotNil: [retryParams at: 'requestState' put: requestState].
 				self sendRequest: 'prompts/get' params: retryParams].
 	^self validatedPromptResult: result
+]
+
+{ #category : 'Protocol Operations',
+  #vaVisibility : 'private' }
+McpClient >> handleElicitationCreateRequest: inputRequest [
+	"Validate, dispatch, and apply schema defaults for one elicitation/create request.
+
+	 Arguments:
+		inputRequest - <KeyedCollection> elicitation/create request object.
+	 Answers:
+		<KeyedCollection> validated ElicitResult."
+
+	| callbackResult action |
+
+	self validateElicitationRequest: inputRequest.
+	self elicitationCallback ifNil: [
+		McpJsonRpcError
+			signalCode: McpJsonRpcInvalidParamsCode
+			message: 'No client elicitationCallback registered for elicitation/create'
+			data: nil].
+	callbackResult := self elicitationCallback value: inputRequest value: self.
+	(callbackResult isKindOf: KeyedCollection)
+		ifFalse: [
+			self error:
+				'Elicitation callback must return an ElicitResult object (KeyedCollection)'].
+	action := callbackResult at: 'action' ifAbsent: [nil].
+	(#('accept' 'decline' 'cancel') includes: action)
+		ifFalse: [self error: 'Elicitation result action must be accept, decline, or cancel'].
+	^self
+		applyElicitationDefaultsFrom: (inputRequest at: 'params')
+		toResult: callbackResult
 ]
 
 { #category : 'Message Handling' }
