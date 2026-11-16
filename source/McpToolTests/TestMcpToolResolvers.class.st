@@ -122,6 +122,45 @@ TestMcpToolResolvers >> testClientRejectsElicitationWithoutRequestedSchema [
 ]
 
 { #category : 'Testing' }
+TestMcpToolResolvers >> testClientRejectsMissingElicitAction [
+	"Verify McpClient requires action ('accept', 'decline', or 'cancel') on ElicitResult."
+
+	| schema wire |
+
+	schema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (EsOrderedDictionary with: 'name' -> (EsOrderedDictionary with: 'type' -> 'string'));
+			yourself.
+	wire := (McpElicit message: 'Provide name' schema: schema) asInputRequest.
+	client elicitationCallback: [:req :c | EsOrderedDictionary with: 'name' -> 'Alice'].
+	self
+		should: [client perform: #dispatchInputRequest:named: with: wire with: 'name']
+		raise: Error
+]
+
+{ #category : 'Testing' }
+TestMcpToolResolvers >> testClientRejectsUnsupportedElicitationMode [
+	"Verify McpClient raises McpJsonRpcInvalidParamsCode when elicitation mode is not in capabilities."
+
+	| restrictedClient wire |
+
+	restrictedClient := McpClient new.
+	restrictedClient capabilities: (
+		EsOrderedDictionary with: 'elicitation' -> EsOrderedDictionary new).
+	restrictedClient elicitationCallback: [:req :c |
+		EsOrderedDictionary with: 'action' -> 'accept'].
+	wire :=
+		(McpElicit
+			message: 'Authorize'
+			url: 'https://mcp.example.com/auth') asInputRequest.
+	self
+		should: [restrictedClient perform: #dispatchInputRequest:named: with: wire with: 'auth']
+		raise: McpJsonRpcError
+]
+
+{ #category : 'Testing' }
 TestMcpToolResolvers >> testElicitRejectsInvalidSchema [
 	"Verify McpElicit enforces a flat object schema with primitive/enum properties for form mode."
 

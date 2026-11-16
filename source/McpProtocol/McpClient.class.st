@@ -2194,6 +2194,24 @@ McpClient >> serverVersion [
 	^self serverInfo at: 'version' ifAbsent: ['unknown']
 ]
 
+{ #category : 'Testing',
+  #vaVisibility : 'private' }
+McpClient >> supportsElicitationMode: aMode [
+	"Answer whether the client's effective capabilities declare support for the given elicitation mode.
+
+	 Arguments:
+		aMode - <String> 'form' or 'url'.
+	 Answers:
+		<Boolean>."
+
+	| elicitationCap |
+
+	elicitationCap := self capabilities at: 'elicitation' ifAbsent: [nil].
+	(elicitationCap isKindOf: KeyedCollection) ifFalse: [^false].
+	elicitationCap isEmpty ifTrue: [^aMode = 'form'].
+	^elicitationCap includesKey: aMode
+]
+
 { #category : 'Accessing' }
 McpClient >> transport [
 	"Answer the configured client transport.
@@ -2286,9 +2304,9 @@ McpClient >> validateElicitationRequest: inputRequest [
 	 Answers:
 		<McpClient> the receiver.
 	 Raises:
-		<McpJsonRpcError> when parameters or schema are missing or malformed."
+		<McpJsonRpcError> when parameters, capabilities, or schema are missing or malformed."
 
-	| params message reqMode requestedSchema targetUrl |
+	| params message reqMode requestedSchema targetUrl colonIndex |
 
 	params := inputRequest at: 'params' ifAbsent: [nil].
 	(params isKindOf: KeyedCollection)
@@ -2298,7 +2316,7 @@ McpClient >> validateElicitationRequest: inputRequest [
 				message: 'Invalid elicitation/create request: params must be an object'
 				data: nil].
 	message := params at: 'message' ifAbsent: [nil].
-	(message isString and: [message isEmpty not])
+	(message isString and: [message isSymbol not and: [message isEmpty not]])
 		ifFalse: [
 			McpJsonRpcError
 				signalCode: McpJsonRpcInvalidParamsCode
@@ -2311,25 +2329,33 @@ McpClient >> validateElicitationRequest: inputRequest [
 				signalCode: McpJsonRpcInvalidParamsCode
 				message: 'Invalid elicitation/create request: mode must be form or url'
 				data: nil].
+	(self supportsElicitationMode: reqMode)
+		ifFalse: [
+			McpJsonRpcError
+				signalCode: McpJsonRpcInvalidParamsCode
+				message: 'Unsupported elicitation mode: ' , reqMode
+				data: nil].
 	reqMode = 'form'
 		ifTrue: [
 			requestedSchema := params at: 'requestedSchema' ifAbsent: [nil].
 			((requestedSchema isKindOf: KeyedCollection)
-				and: [(requestedSchema at: 'type' ifAbsent: [nil]) = 'object'])
-					ifFalse: [
-						McpJsonRpcError
-							signalCode: McpJsonRpcInvalidParamsCode
-							message:
-								'Invalid elicitation/create request: form mode requires an object requestedSchema'
-							data: nil]]
+				and: [
+					(requestedSchema at: 'type' ifAbsent: [nil]) = 'object'
+					and: [(requestedSchema at: 'properties' ifAbsent: [nil]) isKindOf: KeyedCollection]])
+						ifFalse: [
+							McpJsonRpcError
+								signalCode: McpJsonRpcInvalidParamsCode
+								message:
+									'Invalid elicitation/create request: form mode requires an object requestedSchema with properties'
+								data: nil]]
 		ifFalse: [
 			targetUrl := params at: 'url' ifAbsent: [nil].
 			(self isValidAbsoluteResourceUri: targetUrl)
-				ifFalse: [
-					McpJsonRpcError
-						signalCode: McpJsonRpcInvalidParamsCode
-						message: 'Invalid elicitation/create request: url mode requires a valid URL'
-						data: nil].
+					ifFalse: [
+						McpJsonRpcError
+							signalCode: McpJsonRpcInvalidParamsCode
+							message: 'Invalid elicitation/create request: url mode requires a valid URL'
+							data: nil].
 			(params includesKey: 'requestedSchema')
 				ifTrue: [
 					McpJsonRpcError
