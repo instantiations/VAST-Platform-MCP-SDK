@@ -218,6 +218,50 @@ TestMcpToolResolvers >> testElicitUrlModeRequest [
 ]
 
 { #category : 'Testing' }
+TestMcpToolResolvers >> testLegacyClientHandlesServerElicitationRequest [
+	"Verify legacy McpClient dispatches server-initiated elicitation/create via elicitationCallback and applies defaults."
+
+	| legacyClient scriptedTransport schema request sentResponse resultPayload |
+
+	scriptedTransport := McpScriptedClientTransport new.
+	legacyClient := McpClient legacy.
+	legacyClient transport: scriptedTransport.
+	legacyClient elicitationCallback: [:req :c |
+		EsOrderedDictionary
+			with: 'action' -> 'accept'
+			with: 'content' -> EsOrderedDictionary new].
+	schema :=
+		EsOrderedDictionary new
+			at: 'type' put: 'object';
+			at: 'properties'
+				put: (
+					EsOrderedDictionary
+						with: 'role' -> (
+							EsOrderedDictionary
+								with: 'type' -> 'string'
+								with: 'default' -> 'viewer'));
+			yourself.
+	request :=
+		EsOrderedDictionary new
+			at: 'jsonrpc' put: '2.0';
+			at: 'id' put: 'srv-1';
+			at: 'method' put: 'elicitation/create';
+			at: 'params'
+				put: (
+					EsOrderedDictionary
+						with: 'message' -> 'Choose role'
+						with: 'requestedSchema' -> schema);
+			yourself.
+	legacyClient handleIncomingMessage: request.
+	self assert: scriptedTransport notifications size equals: 1.
+	sentResponse := scriptedTransport notifications first.
+	self assert: (sentResponse at: 'id') equals: 'srv-1'.
+	resultPayload := sentResponse at: 'result'.
+	self assert: (resultPayload at: 'action') equals: 'accept'.
+	self assert: ((resultPayload at: 'content') at: 'role') equals: 'viewer'
+]
+
+{ #category : 'Testing' }
 TestMcpToolResolvers >> testMcpToolErrorSignalsToolFailure [
 	"Verify signaling McpToolError returns a structured error result with its message."
 

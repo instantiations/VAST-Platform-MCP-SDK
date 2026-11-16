@@ -1223,6 +1223,30 @@ McpClient >> handleRequestMethod: methodName params: parameters id: identifier [
 	| handler result |
 
 	handler := handlerMutex critical: [requestHandlers at: methodName ifAbsent: [nil]].
+	(handler isNil and: [methodName = 'elicitation/create' and: [self elicitationCallback notNil]])
+		ifTrue: [| inputRequest |
+			inputRequest :=
+				EsOrderedDictionary new
+					at: 'method' put: methodName;
+					at: 'params' put: parameters;
+					yourself.
+			[
+				[result := self handleElicitationCreateRequest: inputRequest]
+					on: McpJsonRpcError
+					do: [:rpcError |
+						^self
+							sendErrorCode: rpcError code
+							message: rpcError messageText
+							data: rpcError data
+							id: identifier]]
+								on: Error
+								do: [:unexpectedError |
+									^self
+										sendErrorCode: McpJsonRpcInternalErrorCode
+										message: 'Internal error'
+										data: nil
+										id: identifier].
+			^self sendResult: result id: identifier].
 	handler ifNil: [
 		^self
 			sendErrorCode: McpJsonRpcMethodNotFoundCode
